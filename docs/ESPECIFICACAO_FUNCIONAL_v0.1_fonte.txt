@@ -1,0 +1,797 @@
+LIFTING ELECTRIC & INSTRUMENTATION
+Portal de Fiscalização e
+Gestão de Fornecedores
+Especificação Funcional - Versão 0.1
+[TABLE]
+Objetivo da versão: Definir o MVP que conecta cadastro, requisitos documentais, qualificação, fiscalização, evidências, não conformidades, planos de ação, indicadores e histórico auditável em um único fluxo.
+[/TABLE]
+
+
+Status: Documento-base para validação interna
+Responsável: Tecnologia da Informação
+Público: Diretoria, Suprimentos/Compras, QSMS e TI
+Data: 04 de setembro de 2026
+Referência conceitual: Gestão 360° de fornecedores, inspirada no fluxo público do Suricatta SGF
+
+
+1. Controle do documento
+[TABLE]
+Campo | Definição
+Produto | Portal de Fiscalização e Gestão de Fornecedores
+Versão funcional | 0.1 - MVP
+Situação | Rascunho estruturado para validação dos setores
+Empresa | Lifting Electric & Instrumentation
+Dono do produto proposto | Área responsável pelo processo de fornecedores, com TI como mantenedora técnica
+Frequência de revisão | A cada mudança de escopo ou aprovação de regra de negócio
+[/TABLE]
+
+[TABLE]
+Regra de leitura: Itens marcados como premissa podem ser usados no protótipo e no planejamento. Itens marcados como decisão pendente precisam de validação do setor responsável antes do desenvolvimento definitivo.
+[/TABLE]
+
+1.1 Histórico de versões
+[TABLE]
+Versão | Data | Descrição | Status
+0.1 | 04/09/2026 | Definição inicial do MVP, fluxos, telas, regras, permissões, dados e critérios de aceite. | Em validação
+0.1-R1 | 04/09/2026 | Perfis internos consolidados em TI, Compras e QSMS; decisões e consultas redistribuídas. | Em validação
+[/TABLE]
+
+1.2 Mapa do documento
+Visão do produto, problema, objetivos e indicadores de sucesso.
+Escopo incluído, exclusões da versão e premissas adotadas.
+Perfis de acesso, responsabilidades e segregação entre portal interno e portal do fornecedor.
+Fluxos ponta a ponta e máquinas de estado dos principais registros.
+Catálogo de telas e requisitos funcionais identificados.
+Regras de negócio, notificações, dados, segurança e critérios de aceite.
+Decisões abertas e proposta de fases após a versão 0.1.
+2. Visão do produto
+O Portal de Fiscalização e Gestão de Fornecedores será o ponto único para registrar quem fornece à Lifting, quais requisitos cada fornecedor precisa cumprir, quais evidências foram analisadas, o que foi encontrado em campo e como cada desvio foi corrigido. A ficha do fornecedor passa a funcionar como um prontuário corporativo: nenhum documento, inspeção, decisão ou alteração crítica fica solto em e-mails e planilhas paralelas.
+[TABLE]
+Proposta de valor: Transformar a fiscalização de fornecedores em um processo rastreável, orientado a risco e operável pelo celular, com pendências claras para cada responsável.
+[/TABLE]
+
+2.1 Problema a resolver
+Cadastros e documentos podem ficar dispersos entre e-mail, pastas, planilhas e sistemas sem ligação entre si.
+A validade documental é descoberta tarde, quando o fornecedor já precisa atuar ou quando ocorre uma auditoria.
+Fiscalizações perdem contexto quando fotos, observações e checklists não ficam ligados ao fornecedor, projeto e contrato.
+Não conformidades podem ser acompanhadas por mensagens sem um estado, um prazo e uma decisão formal de encerramento.
+É difícil responder rapidamente quem aprovou um fornecedor, com base em quais evidências e em qual data.
+Fornecedores de riscos diferentes acabam submetidos ao mesmo processo ou a regras informais difíceis de manter.
+2.2 Objetivos da versão 0.1
+Centralizar o cadastro por CNPJ, contatos, categorias, criticidade e responsáveis internos.
+Gerar automaticamente as pendências documentais conforme categoria e criticidade.
+Permitir análise de documentos com aprovação, reprovação, justificativa, validade e histórico de versões.
+Programar e executar fiscalizações responsivas com checklist e evidências.
+Abrir e acompanhar não conformidades e planos de ação até a verificação final.
+Exibir riscos, prazos e responsabilidades em dashboards e filas de trabalho.
+Manter trilha de auditoria para alterações e decisões relevantes.
+Dar ao fornecedor um portal restrito para cuidar de seus próprios dados e pendências.
+2.3 Princípios de produto
+[TABLE]
+ID | Princípio | Aplicação
+P1 | Risco antes de volume | O dashboard prioriza irregularidades e atrasos; não existe gráfico decorativo sem ação associada.
+P2 | Uma fonte de verdade | Cada fornecedor, documento, fiscalização e NC possui registro único e histórico.
+P3 | Configuração antes de código | Requisitos e checklists são configuráveis por categoria e criticidade.
+P4 | Mobile-first no campo | A execução da fiscalização deve funcionar bem em telas pequenas e câmera do aparelho.
+P5 | Responsabilidade explícita | Toda pendência possui dono, prazo e próximo passo visível.
+P6 | Decisões auditáveis | Aprovar, rejeitar, suspender ou encerrar exige usuário, data e fundamento.
+[/TABLE]
+
+2.4 Indicadores de sucesso do MVP
+[TABLE]
+Indicador | Definição | Meta inicial proposta
+Cobertura cadastral | Fornecedores ativos com cadastro mínimo completo. | >= 95%
+Cobertura documental | Requisitos obrigatórios com documento válido e aprovado. | >= 90%
+Tempo de análise | Mediana entre envio de documento e decisão do QSMS. | <= 3 dias úteis
+Fiscalizações rastreadas | Fiscalizações realizadas que foram concluídas no portal. | 100% após adoção
+NCs vencidas | NCs abertas com prazo de correção ultrapassado. | Tendência de queda
+Rastreabilidade | Decisões críticas com log de usuário, data e motivo. | 100%
+[/TABLE]
+
+As metas são propostas de referência e deverão ser ajustadas após o levantamento da base atual e do volume real de fornecedores.
+3. Escopo da versão 0.1
+3.1 Incluído no MVP
+Autenticação, recuperação de senha, usuários, perfis e controle de acesso por função.
+Cadastro e convite de fornecedores por CNPJ, com contatos e responsáveis internos.
+Categorias, criticidade e matriz configurável de requisitos documentais.
+Upload, versionamento, análise, vencimento e pendências de documentos.
+Qualificação manual com resultado aprovado, aprovado com ressalvas ou reprovado.
+Modelos de checklist e fiscalizações programadas ou avulsas.
+Execução responsiva da fiscalização, incluindo fotos e anexos.
+Não conformidades originadas em fiscalização ou registradas manualmente.
+Plano de ação do fornecedor, revisão, verificação e encerramento.
+Dashboard operacional, filtros, exportações básicas e histórico de auditoria.
+Portal externo limitado aos dados do próprio fornecedor.
+Notificações por e-mail e avisos dentro do portal para eventos essenciais.
+3.2 Fora do escopo desta versão
+[TABLE]
+Item | Tratamento
+Integração com ERP/Nasajon | Prevista para fase posterior; o MVP permite exportação estruturada.
+Consulta automática de CNPJ e certidões | Cadastro e conferência manuais na v0.1.
+Assinatura eletrônica | Documentos assinados podem ser anexados, sem fluxo de assinatura no portal.
+Gestão de empregados terceirizados | Não haverá cadastro individual, treinamentos, ASO ou controle de acesso de pessoas.
+Gestão financeira e dados bancários | Não pertencem ao núcleo de fiscalização do MVP.
+Medição, pedido, nota fiscal e pagamento | Continuam nos processos/sistemas atuais.
+Aplicativo nativo e modo offline | O portal será responsivo; PWA/offline pode entrar em versão posterior.
+WhatsApp e SMS | Notificações iniciais por e-mail e central interna.
+OCR, IA e leitura automática de documentos | Ficam como evolução após estabilizar documentos e regras.
+Score completo de qualidade, entrega e SLA | A v0.1 calcula conformidade operacional apenas com os dados existentes no portal.
+[/TABLE]
+
+3.3 Premissas
+Cada CNPJ representa um cadastro independente, inclusive filiais do mesmo grupo econômico.
+O portal opera inicialmente para uma única organização contratante: a Lifting.
+A interface e as notificações serão em português do Brasil.
+O e-mail é o identificador de acesso; contas de fornecedores só podem visualizar o CNPJ ao qual foram vinculadas.
+Suprimentos/Compras inicia o convite; o fornecedor não cria livremente um cadastro produtivo sem triagem.
+A área de negócio definirá os tipos documentais, prazos, critérios de criticidade, checklists e aprovadores.
+Arquivos serão mantidos em armazenamento privado, com acesso temporário e autorizado.
+Datas e horários serão gravados com fuso e apresentados no horário oficial da operação da empresa.
+3.4 Dependências organizacionais
+Definir se as decisões sensíveis serão individuais ou conjuntas entre Compras e QSMS.
+Inventariar fornecedores ativos, categorias e documentos atualmente exigidos.
+Definir a matriz de criticidade e quais não conformidades bloqueiam automaticamente a atuação.
+Aprovar os prazos padrão de envio, correção, análise e renovação documental.
+Definir a política de retenção e o tratamento de dados pessoais conforme a LGPD.
+4. Usuários, perfis e responsabilidades
+O sistema separará os ambientes interno e externo. Para refletir a estrutura real da Lifting, o ambiente interno terá somente três perfis-base: Administrador TI, Suprimentos/Compras e QSMS. Ações de decisão e consulta serão permissões dentro desses perfis, não perfis adicionais.
+4.1 Perfis internos
+[TABLE]
+Perfil | Responsabilidade principal | Ações exclusivas ou sensíveis
+Administrador TI | Configuração técnica, contas, perfis, parâmetros globais, integrações e suporte. | Criar e bloquear usuários; administrar permissões; consultar auditoria completa; não tomar decisões de negócio por padrão.
+Suprimentos / Compras | Cadastro, convite, categorias, responsáveis, qualificação e acompanhamento gerencial dos fornecedores. | Validar cadastro; alterar categoria/criticidade; decidir qualificação, ressalva, suspensão, bloqueio ou exceção quando o usuário estiver autorizado; consultar e exportar.
+QSMS | Análise documental, fiscalização, evidências, não conformidades, planos de ação e avaliação de risco. | Aprovar/rejeitar documentos; concluir fiscalização; criar/encerrar/reabrir NC; decidir qualificação, suspensão, bloqueio ou exceção quando o usuário estiver autorizado; consultar e exportar.
+[/TABLE]
+
+4.2 Perfis externos
+[TABLE]
+Perfil | Pode | Não pode
+Administrador do fornecedor | Editar dados permitidos, gerenciar contatos da própria empresa, enviar documentos, responder NCs e planos de ação. | Acessar outros fornecedores, alterar decisões internas, excluir histórico ou mudar requisitos.
+Colaborador do fornecedor | Visualizar pendências e executar ações concedidas pelo administrador do fornecedor. | Convidar usuários sem permissão, acessar configurações internas ou aprovar documentos.
+[/TABLE]
+
+4.3 Regras de segregação
+Cada usuário interno recebe um perfil-base; permissões sensíveis de decisão são concedidas individualmente dentro de Compras ou QSMS.
+O usuário que enviou um documento não pode aprová-lo quando ele pertence ao próprio fornecedor; contas externas nunca aprovam documentos.
+Somente usuários designados de Compras ou QSMS podem alterar o resultado final de qualificação, suspensão, bloqueio ou exceção.
+Consulta e exportação autorizada fazem parte de Compras e QSMS; não existe perfil interno separado de Auditor/Consulta.
+O Administrador TI possui controle técnico, mas não aprova documentos nem toma decisões de negócio por padrão.
+Excluir registros de negócio não será permitido pela interface. Quando necessário, o registro será cancelado ou inativado com motivo.
+Contas externas ficam isoladas por fornecedor; nenhuma busca, URL ou exportação pode revelar dados de outro CNPJ.
+A visualização de anexos segue as mesmas permissões do registro ao qual o arquivo pertence.
+4.4 Resumo de permissões
+[TABLE]
+Módulo | Admin TI | Compras | QSMS | Fornecedor
+Usuários e perfis | G | - | - | Próprios
+Fornecedores | V | G | V/Parecer | Próprio
+Categorias/requisitos | V | G | G | V
+Documentos | V | V | G | Enviar
+Qualificação | V | Decidir* | Decidir* | V
+Fiscalizações | V | V | G | V
+NC / Plano de ação | V | Decidir* | G/Decidir* | Responder
+Auditoria | G | V | V | -
+[/TABLE]
+
+Legenda: G = gerenciar; V = visualizar. O asterisco indica permissão sensível concedida apenas a usuários designados do setor. A validação definirá quando a decisão poderá ser individual e quando exigirá aprovação conjunta de Compras e QSMS.
+5. Estados e ciclos de vida
+Para evitar um campo genérico de ativo/inativo, o portal separa o estado cadastral, a qualificação e a situação operacional. Isso permite, por exemplo, que um fornecedor continue cadastrado, mas fique suspenso temporariamente por risco crítico.
+5.1 Cadastro do fornecedor
+[TABLE]
+Estado | Significado | Próximos estados permitidos
+Convite enviado | Acesso criado, mas cadastro ainda não iniciado. | Em preenchimento; convite expirado
+Em preenchimento | Fornecedor salvou rascunho. | Enviado para análise
+Enviado para análise | Cadastro mínimo concluído e submetido. | Em análise
+Em análise | Equipe interna revisa os dados. | Ajustes solicitados; cadastro validado; rejeitado
+Ajustes solicitados | Fornecedor precisa corrigir campos indicados. | Enviado para análise
+Cadastro validado | Identidade e informações mínimas aceitas. | Inativo
+Rejeitado | Cadastro recusado com justificativa. | Em preenchimento; inativo
+Inativo | Sem uso operacional, preservando histórico. | Em análise
+[/TABLE]
+
+5.2 Qualificação
+[TABLE]
+Estado | Condição geral | Efeito
+Não iniciada | Cadastro ainda sem requisitos avaliados. | Não permite aprovação operacional.
+Documentação pendente | Há requisito obrigatório sem envio válido. | Exibe pendências ao fornecedor.
+Em validação | Documentos e pareceres estão em análise. | Aguarda decisão interna.
+Aprovado | Requisitos obrigatórios atendidos. | Fornecedor elegível conforme regras da empresa.
+Aprovado com ressalvas | Há exceção formal, condicionante ou prazo aprovado. | Uso condicionado e destacado no portal.
+Reprovado | Critérios mínimos não atendidos. | Não elegível; requer nova submissão ou encerramento.
+Em requalificação | Nova análise por vencimento, mudança ou periodicidade. | Mantém ou restringe situação conforme decisão.
+[/TABLE]
+
+5.3 Situação operacional
+[TABLE]
+Situação | Quando usar | Regra
+Regular | Aprovado e sem bloqueios críticos. | Pode ser selecionado em operações.
+Atenção | Pendência próxima do prazo ou ressalva vigente. | Uso permitido, com alerta.
+Irregular | Documento vencido, NC atrasada ou requisito descumprido. | Uso depende de política e decisão autorizada de Compras/QSMS.
+Suspenso | Restrição temporária por risco ou decisão administrativa. | Não pode receber nova autorização enquanto vigente.
+Bloqueado | Risco crítico, fraude, determinação legal ou descumprimento grave. | Ação somente por usuário autorizado de Compras/QSMS, com justificativa.
+[/TABLE]
+
+5.4 Documento
+Pendente -> Enviado -> Em análise -> Aprovado ou Rejeitado. Um documento aprovado passa a Vencendo quando entrar na janela de alerta e a Vencido após a data de validade. Uma nova versão não apaga a anterior.
+5.5 Fiscalização
+Programada -> Em andamento -> Concluída. Também pode ser Cancelada antes da conclusão, sempre com motivo. Uma fiscalização concluída torna-se imutável; correções administrativas são registradas por termo de retificação no histórico.
+5.6 Não conformidade
+Aberta -> Aguardando plano de ação -> Plano em análise -> Em correção -> Aguardando verificação -> Encerrada. Se a evidência ou a correção forem recusadas, a NC retorna para Aguardando plano de ação ou Em correção. Uma NC encerrada pode ser reaberta por QSMS ou por usuário autorizado de Compras, com justificativa.
+6. Fluxos ponta a ponta
+6.1 Convite, cadastro e qualificação
+Compras informa CNPJ, razão social, e-mail principal, categoria, criticidade proposta e responsáveis internos.
+O sistema verifica duplicidade de CNPJ e cria o fornecedor como convite enviado.
+O fornecedor recebe link de uso único, cria a senha e aceita os termos aplicáveis.
+O fornecedor preenche dados cadastrais e contatos, revisa as pendências geradas e envia o cadastro.
+Compras valida a identidade e ajusta categoria/criticidade quando necessário.
+O sistema aplica a matriz de requisitos e apresenta os documentos obrigatórios.
+O fornecedor envia documentos; o QSMS aprova ou rejeita cada versão com justificativa.
+Quando os requisitos necessários estiverem tratados, o processo segue para um usuário autorizado de Compras ou QSMS.
+O usuário autorizado registra aprovado, aprovado com ressalvas ou reprovado, incluindo motivo e condições.
+O sistema atualiza a situação operacional, gera histórico e notifica os envolvidos.
+6.2 Fiscalização em campo
+O QSMS cria uma fiscalização e seleciona fornecedor, projeto/local, data e modelo de checklist.
+O sistema congela uma cópia do checklist para preservar o conteúdo usado naquele evento.
+No celular, o responsável QSMS inicia a atividade e responde cada item como Conforme, Conforme com ressalva, Não conforme ou Não aplicável.
+Itens que exigem evidência solicitam foto, arquivo e/ou observação conforme a configuração.
+Ao tentar concluir, o sistema valida campos obrigatórios e itens sem resposta.
+A conclusão calcula o resultado e cria rascunhos de NC para itens configurados como geradores de desvio.
+O responsável QSMS confirma gravidade, responsável e prazo das NCs antes de notificá-las.
+A fiscalização concluída fica disponível no prontuário do fornecedor e no histórico do projeto.
+6.3 Não conformidade e plano de ação
+A NC é criada a partir de uma fiscalização ou por registro manual autorizado.
+O fornecedor recebe descrição, evidências, gravidade, prazo e responsável interno.
+O fornecedor apresenta causa, ação corretiva, responsável, prazo proposto e evidências, podendo salvar rascunho.
+QSMS ou usuário autorizado de Compras aceita o plano, solicita ajustes ou rejeita com justificativa.
+Durante a correção, o fornecedor adiciona evidências de execução sem apagar os arquivos anteriores.
+Na verificação, o QSMS aprova a correção e encerra a NC ou a devolve com nova orientação.
+Atrasos são destacados no dashboard e em notificações; gravidade crítica pode suspender o fornecedor conforme regra aprovada.
+6.4 Renovação documental
+O sistema verifica diariamente documentos aprovados com data de validade.
+Ao entrar nas janelas configuradas, cria alertas e notifica fornecedor e responsável interno.
+O fornecedor envia uma nova versão vinculada ao mesmo requisito.
+Até a nova aprovação, o sistema mantém a versão anterior no histórico e sinaliza o risco de vencimento ou a irregularidade.
+Após a análise, a nova versão vira a vigente; rejeições mantêm a pendência aberta.
+6.5 Suspensão e desbloqueio
+Usuário autorizado seleciona suspender ou bloquear e informa motivo, origem, data efetiva e, se houver, término previsto.
+O sistema solicita confirmação reforçada e registra a decisão na auditoria.
+Fornecedor e responsáveis internos são notificados sem expor observações internas classificadas como restritas.
+A reativação exige nova decisão autorizada, justificativa e, quando configurado, conclusão de pendências específicas.
+7. Arquitetura de informação e catálogo de telas
+7.1 Menu do ambiente interno
+Dashboard
+Fornecedores
+Documentos
+Fiscalizações
+Não conformidades
+Relatórios
+Notificações
+Configurações: categorias, requisitos, checklists, usuários, perfis e parâmetros
+7.2 Menu do portal do fornecedor
+Início / Minhas pendências
+Minha empresa
+Documentos
+Fiscalizações
+Não conformidades e planos de ação
+Notificações
+Usuários da empresa
+Histórico visível
+7.3 Catálogo de telas internas
+[TABLE]
+ID | Tela | Conteúdo principal | Ações
+INT-01 | Login | E-mail, senha, recuperação e mensagens de segurança. | Entrar; recuperar senha
+INT-02 | Dashboard | KPIs de risco, pendências urgentes, prazos e filas pessoais. | Abrir lista filtrada; exportar
+INT-03 | Fornecedores | Busca, filtros, status, criticidade e responsáveis. | Novo convite; exportar; abrir ficha
+INT-04 | Novo fornecedor | CNPJ, razão social, contato, categoria, criticidade e responsáveis. | Salvar rascunho; enviar convite
+INT-05 | Fornecedor 360° | Resumo e abas: dados, requisitos, documentos, inspeções, NCs, decisões e histórico. | Editar; qualificar; suspender; bloquear
+INT-06 | Fila de documentos | Documentos enviados, vencendo, vencidos, rejeitados e aguardando análise. | Analisar; atribuir; filtrar
+INT-07 | Análise de documento | Pré-visualização, metadados, versão anterior, requisito e parecer. | Aprovar; rejeitar; solicitar correção
+INT-08 | Fiscalizações | Lista/calendário por fornecedor, projeto, fiscal, tipo, data e status. | Programar; iniciar; duplicar modelo
+INT-09 | Execução de fiscalização | Checklist responsivo, progresso, observações e captura de evidência. | Salvar; pausar; concluir
+INT-10 | Detalhe da fiscalização | Cabeçalho, respostas, evidências, resultado, NCs geradas e histórico. | Gerar relatório; retificar
+INT-11 | Não conformidades | Fila por gravidade, prazo, estado, fornecedor e responsável. | Abrir; atribuir; exportar
+INT-12 | Detalhe da NC | Origem, descrição, evidências, plano, decisões e linha do tempo. | Aceitar/rejeitar plano; verificar; encerrar
+INT-13 | Relatórios | Filtros e exportações de fornecedores, documentos, fiscalizações e NCs. | Exportar XLSX/CSV/PDF simples
+INT-14 | Configurações | Categorias, requisitos, checklists, alertas, usuários e permissões. | Criar; versionar; inativar
+INT-15 | Auditoria | Eventos por período, usuário, entidade e ação. | Filtrar; visualizar antes/depois
+[/TABLE]
+
+7.4 Catálogo de telas externas
+[TABLE]
+ID | Tela | Conteúdo principal
+EXT-01 | Ativação | Validar convite, criar senha e aceitar termos.
+EXT-02 | Início | Resumo da situação, pendências, prazos e mensagens.
+EXT-03 | Minha empresa | Dados cadastrais editáveis, contatos e categorias informadas.
+EXT-04 | Documentos | Requisitos, validade, última versão, parecer e envio.
+EXT-05 | Fiscalizações | Fiscalizações liberadas e seus resultados não restritos.
+EXT-06 | NCs e planos | Descrição, prazo, resposta, evidências, decisões e histórico.
+EXT-07 | Usuários | Convites e bloqueios de contas vinculadas ao próprio fornecedor.
+EXT-08 | Notificações | Alertas lidos/não lidos com atalho para a ação necessária.
+[/TABLE]
+
+7.5 Diretrizes de experiência
+Toda lista terá busca, filtros combináveis, ordenação, paginação e estado vazio orientativo.
+Filtros ativos permanecem visíveis e podem ser limpos individualmente.
+Ações irreversíveis ou sensíveis pedem confirmação e justificativa quando aplicável.
+No celular, a ação primária permanece acessível e os itens do checklist usam áreas de toque confortáveis.
+Uploads mostram progresso, validação de formato/tamanho e resultado final; falhas não apagam campos preenchidos.
+Status nunca dependem somente de cor: devem ter texto, ícone e descrição acessível.
+Prazos exibem data absoluta e indicação contextual, como “vence em 7 dias” ou “atrasado há 3 dias”.
+Cada pendência informa o motivo, o responsável atual e a ação necessária para avançar.
+8. Requisitos funcionais
+Prioridades: MUST é indispensável para considerar a v0.1 concluída; SHOULD é desejável na mesma versão, mas pode ser replanejada sem quebrar o ciclo principal.
+8.1 Acesso e usuários
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-001 | Autenticação | Permitir login com e-mail e senha, usando mensagens genéricas para credenciais inválidas. | MUST
+RF-002 | Recuperação | Enviar link de redefinição de uso único e com expiração configurável. | MUST
+RF-003 | Sessão | Encerrar sessões expiradas e permitir logout em todos os dispositivos. | MUST
+RF-004 | Usuários | Criar, editar, bloquear e reativar usuários sem apagar seu histórico. | MUST
+RF-005 | Perfis | Associar um ou mais perfis e permissões granulares ao usuário interno. | MUST
+RF-006 | Escopo externo | Vincular conta externa a um único fornecedor e validar o vínculo em toda requisição. | MUST
+RF-007 | Acesso externo | Permitir que o administrador do fornecedor convide e bloqueie colaboradores do próprio CNPJ. | SHOULD
+RF-008 | Bloqueio | Suspender acesso após tentativas inválidas conforme política configurada, sem bloquear o fornecedor cadastrado. | MUST
+[/TABLE]
+
+8.2 Fornecedores e cadastro
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-010 | Novo fornecedor | Cadastrar CNPJ, razão social, nome fantasia, inscrições, endereço, site, porte opcional e situação cadastral informada. | MUST
+RF-011 | CNPJ único | Impedir segundo cadastro ativo para o mesmo CNPJ normalizado. | MUST
+RF-012 | Contatos | Manter contatos com nome, cargo, e-mail, telefone, tipo e indicador de principal. | MUST
+RF-013 | Fornecimento | Classificar como material, serviço ou ambos, com uma ou mais categorias. | MUST
+RF-014 | Responsáveis | Vincular comprador, gestor do contrato e fiscal responsável, permitindo mais de um quando necessário. | MUST
+RF-015 | Criticidade | Atribuir baixa, média, alta ou crítica, exigindo justificativa para mudanças. | MUST
+RF-016 | Convite | Enviar convite com expiração e permitir reenvio ou cancelamento. | MUST
+RF-017 | Rascunho | Salvar cadastro incompleto sem submetê-lo à análise. | MUST
+RF-018 | Validação | Destacar campos obrigatórios e pendências antes do envio. | MUST
+RF-019 | Revisão | Permitir aprovar cadastro, solicitar ajustes ou rejeitar com justificativa. | MUST
+RF-020 | Busca | Pesquisar por CNPJ, razão social, nome fantasia, categoria e responsável. | MUST
+RF-021 | Filtros | Filtrar por status cadastral, qualificação, situação operacional, criticidade, categoria, projeto e pendência. | MUST
+RF-022 | Fornecedor 360° | Consolidar dados, documentos, fiscalizações, NCs, decisões, indicadores e histórico em uma ficha única. | MUST
+RF-023 | Inativação | Inativar fornecedor com motivo, preservando vínculos e histórico. | MUST
+RF-024 | Importação | Importar lote inicial de fornecedores por modelo CSV/XLSX validado. | SHOULD
+[/TABLE]
+
+8.3 Categorias, criticidade e requisitos
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-030 | Categorias | Criar hierarquia simples de categorias e subcategorias, com código, nome, descrição e status. | MUST
+RF-031 | Tipos de documento | Cadastrar tipo, descrição, formatos aceitos, validade e necessidade de data de emissão. | MUST
+RF-032 | Matriz | Vincular requisito documental a categoria e faixa de criticidade. | MUST
+RF-033 | Obrigatoriedade | Marcar requisito como obrigatório, condicional ou informativo. | MUST
+RF-034 | Periodicidade | Definir validade fixa, validade informada pelo documento ou sem vencimento. | MUST
+RF-035 | Alertas | Configurar janelas padrão de alerta por tipo documental. | MUST
+RF-036 | Aplicação | Gerar ou atualizar pendências quando categoria/criticidade do fornecedor mudar. | MUST
+RF-037 | Exceção | Permitir dispensa temporária ou permanente com aprovador, motivo e validade. | SHOULD
+RF-038 | Versionamento | Alterações em requisitos não podem mudar retroativamente decisões históricas. | MUST
+[/TABLE]
+
+8.4 Documentos
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-040 | Upload | Receber PDF, JPG e PNG, validando extensão, MIME e tamanho máximo configurável. | MUST
+RF-041 | Metadados | Registrar tipo, emissão, validade, número, emissor, observação e fornecedor. | MUST
+RF-042 | Versões | Criar nova versão sem sobrescrever arquivo ou parecer anterior. | MUST
+RF-043 | Fila | Exibir documentos aguardando análise com idade, criticidade e responsável. | MUST
+RF-044 | Atribuição | Permitir atribuir análise a um usuário ou fila de setor. | SHOULD
+RF-045 | Visualização | Pré-visualizar o arquivo ou oferecer download autorizado quando o formato não puder ser exibido. | MUST
+RF-046 | Aprovação | Aprovar documento e confirmar validade efetiva. | MUST
+RF-047 | Rejeição | Rejeitar com motivo obrigatório e orientação visível ao fornecedor. | MUST
+RF-048 | Vencimento | Atualizar diariamente estados de vencendo e vencido. | MUST
+RF-049 | Renovação | Permitir nova versão antes ou depois do vencimento. | MUST
+RF-050 | Comentários | Manter observações internas separadas da mensagem externa ao fornecedor. | MUST
+RF-051 | Pendência | Considerar atendido somente requisito obrigatório com versão vigente aprovada ou exceção válida. | MUST
+RF-052 | Exportação | Exportar relação documental e vencimentos por fornecedor e período. | SHOULD
+[/TABLE]
+
+8.5 Qualificação
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-060 | Processo | Criar processo de qualificação vinculado ao fornecedor e à versão vigente da matriz de requisitos. | MUST
+RF-061 | Pendências | Listar requisitos obrigatórios ausentes, rejeitados, vencidos ou sob análise. | MUST
+RF-062 | Pareceres | Permitir pareceres de Compras e QSMS, conforme configuração e criticidade. | SHOULD
+RF-063 | Decisão | Registrar aprovado, aprovado com ressalvas ou reprovado com motivo obrigatório. | MUST
+RF-064 | Ressalva | Definir condição, responsável, prazo e efeito operacional. | MUST
+RF-065 | Requalificação | Iniciar nova rodada preservando a anterior e seus documentos/decisões. | MUST
+RF-066 | Bloqueio de decisão | Impedir aprovação normal enquanto houver requisito obrigatório não atendido; exceção exige perfil autorizado. | MUST
+RF-067 | Comprovante | Gerar resumo imprimível da decisão e dos requisitos avaliados. | SHOULD
+[/TABLE]
+
+8.6 Checklists e fiscalizações
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-070 | Modelo | Criar checklist com título, categoria, seções, itens, orientação e ordem. | MUST
+RF-071 | Resposta | Configurar respostas permitidas por item: Conforme, Ressalva, Não conforme e Não aplicável. | MUST
+RF-072 | Evidência | Definir se observação, foto ou documento é obrigatório conforme a resposta. | MUST
+RF-073 | NC automática | Marcar itens que sugerem criação de NC e gravidade padrão. | MUST
+RF-074 | Versionamento | Congelar cópia do checklist ao criar/iniciar a fiscalização. | MUST
+RF-075 | Programação | Criar fiscalização com fornecedor, projeto/contrato, local, data, fiscal, tipo e modelo. | MUST
+RF-076 | Execução | Salvar respostas progressivamente e permitir retomar fiscalização em andamento. | MUST
+RF-077 | Captura | Anexar imagens da câmera ou galeria e arquivos permitidos. | MUST
+RF-078 | Validação | Impedir conclusão com item obrigatório sem resposta/evidência. | MUST
+RF-079 | Resultado | Calcular percentual de conformidade, excluindo itens não aplicáveis. | MUST
+RF-080 | Conclusão | Tornar respostas imutáveis e registrar data, hora e usuário da conclusão. | MUST
+RF-081 | Relatório | Gerar relatório simples com cabeçalho, checklist, evidências e NCs. | SHOULD
+RF-082 | Cancelamento | Cancelar antes da conclusão com motivo e histórico. | MUST
+[/TABLE]
+
+8.7 Não conformidades e planos de ação
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-090 | Criação | Criar NC a partir de item de fiscalização ou manualmente por usuário autorizado. | MUST
+RF-091 | Identificador | Gerar número único anual, por exemplo NC-2026-0041. | MUST
+RF-092 | Campos | Registrar fornecedor, origem, categoria, gravidade, descrição, responsável e prazo. | MUST
+RF-093 | Evidências | Vincular fotos e arquivos da origem e permitir evidência adicional. | MUST
+RF-094 | Plano | Fornecedor informa causa, ação, responsável, prazo e evidência, com rascunho e envio. | MUST
+RF-095 | Revisão | QSMS ou usuário autorizado de Compras aceita, rejeita ou solicita ajuste do plano com justificativa. | MUST
+RF-096 | Verificação | QSMS registra verificação remota ou presencial e decisão final. | MUST
+RF-097 | Reabertura | Reabrir NC encerrada com motivo e novo prazo, sem apagar encerramento anterior. | MUST
+RF-098 | Atraso | Marcar NC vencida e escalar notificação conforme gravidade. | MUST
+RF-099 | Bloqueio | Sugerir suspensão automática para regra crítica; a efetivação exige decisão autorizada. | MUST
+RF-100 | Linha do tempo | Exibir mudanças de status, mensagens, arquivos, decisões e usuários. | MUST
+[/TABLE]
+
+8.8 Dashboard, relatórios, notificações e auditoria
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-110 | Dashboard | Exibir KPIs, pendências urgentes, documentos vencidos, NCs atrasadas e fiscalizações pendentes. | MUST
+RF-111 | Fila pessoal | Exibir tarefas atribuídas ou relacionadas ao usuário autenticado. | MUST
+RF-112 | Drill-down | Todo cartão de indicador abre a lista correspondente já filtrada. | MUST
+RF-113 | Conformidade | Calcular indicador operacional com fórmula configurada e memória de cálculo acessível. | SHOULD
+RF-114 | Relatórios | Disponibilizar relatórios básicos de cadastro, documentos, fiscalizações e NCs. | MUST
+RF-115 | Exportação | Exportar respeitando filtros e permissões em CSV/XLSX e PDF simples quando aplicável. | SHOULD
+RF-116 | Central | Manter notificações lidas/não lidas com tipo, data, contexto e atalho. | MUST
+RF-117 | E-mail | Enviar e-mails transacionais essenciais, evitando duplicidade no mesmo evento. | MUST
+RF-118 | Auditoria | Registrar criação, edição crítica, decisão, acesso a arquivo sensível, login e alteração de permissão. | MUST
+RF-119 | Antes/depois | Guardar valores anteriores e posteriores para campos críticos, com proteção de dados sensíveis. | MUST
+RF-120 | Consulta | Filtrar auditoria por usuário, período, ação e entidade, sem permitir alteração. | MUST
+[/TABLE]
+
+8.9 Portal do fornecedor
+[TABLE]
+ID | Função | Requisito | Prioridade
+RF-130 | Painel | Exibir situação, próximos prazos e ações exigidas do próprio fornecedor. | MUST
+RF-131 | Cadastro | Permitir edição de campos liberados; mudanças sensíveis retornam para análise interna. | MUST
+RF-132 | Documentos | Exibir requisito, obrigatoriedade, validade, parecer e ação de envio. | MUST
+RF-133 | Fiscalização | Mostrar apenas relatórios/resultados liberados para o fornecedor. | MUST
+RF-134 | NC | Permitir visualizar, responder, anexar evidências e acompanhar decisões. | MUST
+RF-135 | Usuários | Gerenciar contas externas limitadas à própria empresa. | SHOULD
+RF-136 | Histórico | Mostrar linha do tempo somente com eventos classificados como externos. | MUST
+RF-137 | Suporte | Disponibilizar canal/contato configurável para dúvidas de acesso e processo. | SHOULD
+[/TABLE]
+
+9. Regras de negócio
+[TABLE]
+ID | Tema | Regra
+RN-001 | CNPJ | Armazenar somente dígitos e apresentar formatado. O CNPJ normalizado deve ser único entre fornecedores não definitivamente descartados.
+RN-002 | Filiais | Matriz e filial com CNPJs diferentes são fornecedores diferentes, podendo ser relacionadas por grupo econômico em fase posterior.
+RN-003 | Criticidade | Mudança de criticidade exige motivo e reaplicação dos requisitos; a alteração não reescreve avaliações passadas.
+RN-004 | Requisito aplicável | A matriz considera a união dos requisitos das categorias do fornecedor e da sua criticidade, eliminando duplicidades por tipo.
+RN-005 | Condicional | Requisito condicional precisa registrar a condição e a decisão de aplicabilidade para o fornecedor.
+RN-006 | Documento vigente | É a versão aprovada mais recente dentro da validade; o envio de nova versão não apaga a vigente até decisão, salvo vencimento.
+RN-007 | Validade | Fim de validade ocorre às 23:59:59 da data informada no fuso operacional configurado.
+RN-008 | Janelas de alerta | Padrão proposto: 60, 30, 15 e 7 dias antes do vencimento; configurável por tipo documental.
+RN-009 | Rejeição | Toda rejeição exige motivo externo claro; observação interna é opcional e não pode ser exibida ao fornecedor.
+RN-010 | Qualificação | Aprovação normal exige cadastro validado e todos os requisitos obrigatórios atendidos.
+RN-011 | Exceção | Aprovação com ressalvas ou dispensa exige aprovador, justificativa, condição, validade e responsável pelo acompanhamento.
+RN-012 | Requalificação | Mudança crítica, vencimento de requisito bloqueante ou prazo periódico pode abrir nova rodada sem excluir a anterior.
+RN-013 | Checklist congelado | A fiscalização usa snapshot do modelo; editar o modelo só afeta fiscalizações futuras ainda não iniciadas.
+RN-014 | Não aplicável | Item N/A exige justificativa quando configurado e não entra no denominador do percentual.
+RN-015 | Resultado da fiscalização | Conformidade = itens conformes / itens aplicáveis x 100; ressalvas e NCs aparecem separadamente.
+RN-016 | NC crítica | Sugestão de bloqueio não equivale à decisão; somente perfil autorizado efetiva suspensão/bloqueio.
+RN-017 | Prazo da NC | Padrões propostos: baixa 30 dias, média 15, alta 7 e crítica 1 dia; todos sujeitos à validação.
+RN-018 | Encerramento | NC só pode ser encerrada após evidência e verificação registradas, salvo cancelamento administrativo autorizado.
+RN-019 | Imutabilidade | Fiscalização concluída e decisão final não são editadas diretamente; correções usam retificação auditada.
+RN-020 | Exclusão | Registros de negócio são inativados/cancelados, nunca apagados pela interface.
+RN-021 | Privacidade externa | Eventos internos, comentários restritos e dados de outros fornecedores nunca são retornados ao portal externo.
+RN-022 | Notificação | Notificar não substitui a pendência no portal; o registro central é a fonte oficial.
+RN-023 | Indicador | Qualquer índice agregado deve exibir fórmula, data de cálculo e dados componentes.
+RN-024 | Responsável | Toda fiscalização, análise e NC deve ter ao menos um responsável interno ativo.
+[/TABLE]
+
+9.1 Proposta de indicador de conformidade da v0.1
+Para evitar um score enganoso antes de integrar qualidade, prazo de entrega e SLA, a versão inicial pode usar um Índice de Conformidade Operacional (ICO) limitado aos dados existentes no portal:
+[TABLE]
+Componente | Peso proposto | Cálculo
+Documentação | 40% | Requisitos obrigatórios válidos e aprovados / requisitos obrigatórios aplicáveis.
+Fiscalizações | 40% | Média ponderada das fiscalizações concluídas nos últimos 12 meses.
+Não conformidades | 20% | Nota por quantidade, gravidade, atraso e reincidência de NCs abertas.
+[/TABLE]
+
+[TABLE]
+Decisão pendente: A fórmula, as penalidades e o uso do ICO para bloquear fornecedores precisam ser aprovados pelo dono do processo. Até essa aprovação, o indicador deve ser apenas informativo.
+[/TABLE]
+
+10. Notificações e alertas
+O portal mantém uma central de notificações e envia e-mail apenas para eventos que exigem conhecimento ou ação. O conteúdo precisa indicar fornecedor, evento, prazo e link seguro para o registro, sem anexar documentos sensíveis ao e-mail.
+[TABLE]
+Evento | Destinatários | Momento | Ação esperada
+Convite enviado | Fornecedor | Imediato | Ativar conta e preencher cadastro
+Convite expirando | Compras + fornecedor | 24 h antes | Reenviar ou concluir ativação
+Cadastro enviado | Compras | Imediato | Analisar cadastro
+Ajustes solicitados | Fornecedor | Imediato | Corrigir campos indicados
+Documento enviado | QSMS | Imediato ou digest | Analisar documento
+Documento rejeitado | Fornecedor + responsável interno | Imediato | Enviar nova versão
+Documento vencendo | Fornecedor + responsável interno | 60/30/15/7 dias | Renovar
+Documento vencido | Fornecedor + Compras + QSMS | No vencimento e escalonamento | Regularizar/decidir restrição
+Qualificação decidida | Fornecedor + responsáveis | Imediato | Tomar ciência das condições
+Fiscalização programada | QSMS + responsáveis | Na criação e 24 h antes | Preparar/executar
+NC criada | Fornecedor + Compras + QSMS | Imediato | Responder dentro do prazo
+Plano enviado | Compras/QSMS autorizado | Imediato | Revisar plano
+Plano rejeitado | Fornecedor | Imediato | Ajustar plano
+NC próxima do prazo | Fornecedor + responsáveis | 3 dias antes, configurável | Concluir correção
+NC vencida | Fornecedor + Compras + QSMS | Diário até tratamento | Escalar e corrigir
+Suspensão/bloqueio | Fornecedor + responsáveis autorizados | Imediato | Tomar ciência e cumprir condições
+[/TABLE]
+
+O usuário pode marcar notificação como lida, mas não apagar o evento de negócio.
+Notificações repetidas devem ser consolidadas quando não houver mudança relevante.
+Falha de e-mail não desfaz a ação; o sistema registra a tentativa e mantém o alerta no portal.
+Destinatários externos recebem somente conteúdo classificado como visível ao fornecedor.
+11. Modelo de dados conceitual
+Esta seção define as entidades necessárias para o MVP e orienta o banco de dados. Ela não substitui o modelo físico nem as migrations, mas estabelece a propriedade e os vínculos que a implementação deve preservar.
+[TABLE]
+Entidade | Responsabilidade | Relacionamentos principais
+User | Conta interna ou externa, e-mail, status, último acesso. | Role; SupplierUser; AuditLog
+Role / Permission | Perfis e permissões granulares. | UserRole
+Supplier | CNPJ, nomes, endereço, estados cadastral/operacional, criticidade. | Contact; Category; Requirement; Qualification
+SupplierContact | Contato com tipo, cargo, canais e principal. | Supplier
+SupplierCategory | Relação do fornecedor com categorias de material/serviço. | Supplier; Category
+Category | Código, nome, hierarquia simples e situação. | RequirementRule; ChecklistTemplate
+RequirementType | Tipo de documento/evidência e regras de validade. | RequirementRule; SupplierRequirement
+RequirementRule | Aplicação por categoria, criticidade e obrigatoriedade. | Category; RequirementType
+SupplierRequirement | Instância aplicável ao fornecedor, situação e exceção. | Document; Qualification
+Document | Registro lógico de um requisito documental. | DocumentVersion
+DocumentVersion | Arquivo, metadados, status, parecer e validade. | FileObject; Review; AuditLog
+Qualification | Rodada, matriz usada, estado, decisão e validade. | SupplierRequirement; QualificationDecision
+ChecklistTemplate | Modelo versionado, categoria, seções e itens. | ChecklistTemplateVersion
+Inspection | Fornecedor, projeto/local, fiscal, datas, status e resultado. | InspectionAnswer; Evidence; NonConformity
+InspectionAnswer | Resposta congelada, observação e resultado por item. | Inspection; Evidence
+Evidence | Arquivo ou foto com origem, autor, data e visibilidade. | FileObject; Inspection/NC/Action
+NonConformity | Número, origem, gravidade, prazo, responsável e estado. | CorrectiveAction; Evidence; StatusHistory
+CorrectiveAction | Causa, ação, responsável, prazo, envio e decisão. | NonConformity; Evidence; Review
+Notification | Evento, destinatário, canal, leitura e entrega. | User; BusinessEvent
+AuditLog | Ator, ação, entidade, valores relevantes, data, IP e contexto. | User; qualquer entidade auditável
+FileObject | Nome, MIME, tamanho, checksum, chave privada e retenção. | DocumentVersion; Evidence
+Project / ContractRef | Referência mínima ao projeto/contrato na v0.1. | Supplier; Inspection; NC
+[/TABLE]
+
+11.1 Campos mínimos do fornecedor
+[TABLE]
+Grupo | Campos
+Identificação | CNPJ, razão social, nome fantasia, inscrição estadual/municipal, site, situação.
+Endereço | CEP, logradouro, número, complemento, bairro, cidade, UF, país.
+Fornecimento | Tipo (material/serviço/ambos), categorias, especialidades e observação.
+Governança | Criticidade, comprador, gestor do contrato, fiscal, status cadastral, qualificação e situação operacional.
+Datas | Criação, envio, validação, última atualização, última qualificação e próxima requalificação.
+[/TABLE]
+
+11.2 Estratégia técnica recomendada
+Aplicação web responsiva com portal interno e externo compartilhando a mesma API e regras de autorização.
+Next.js e TypeScript no front-end; componentes acessíveis e formulários com validação no cliente e servidor.
+Backend em Node/TypeScript, inicialmente no mesmo projeto ou separado por módulos bem definidos.
+PostgreSQL para dados relacionais, histórico e consultas; não usar SQLite em produção.
+Storage S3 compatível para arquivos privados, com URLs temporárias e checksums.
+Processos agendados para vencimentos, lembretes, requalificação e envio de e-mails.
+API e esquema preparados para integrações futuras sem expor diretamente as tabelas internas.
+12. Dashboard e relatórios
+12.1 Pergunta central
+[TABLE]
+O dashboard deve responder: Onde existe risco agora, quem precisa agir e qual é o prazo?
+[/TABLE]
+
+12.2 KPIs operacionais
+[TABLE]
+KPI | Definição | Ação ao clicar
+Fornecedores ativos | Cadastros validados e não inativos. | Lista de fornecedores ativos
+Aprovados | Qualificação vigente aprovada. | Lista filtrada
+Com ressalvas | Qualificação vigente com condicionantes. | Ressalvas e prazos
+Suspensos/bloqueados | Situação operacional restritiva. | Motivos e responsáveis
+Documentos vencidos | Requisitos com versão vigente fora da validade. | Fila de regularização
+Vencendo em 30 dias | Documentos aprovados com validade em até 30 dias. | Fila de renovação
+Aguardando análise | Versões enviadas sem decisão. | Fila por idade/criticidade
+Fiscalizações pendentes | Programadas com data atual ou anterior e não concluídas. | Agenda/lista
+NCs abertas | Não conformidades não encerradas/canceladas. | Fila por gravidade
+NCs atrasadas | NCs abertas com prazo ultrapassado. | Fila por dias de atraso
+ICO médio | Média do indicador de conformidade entre fornecedores elegíveis. | Memória de cálculo
+[/TABLE]
+
+12.3 Relatórios mínimos
+Cadastro de fornecedores com categoria, criticidade, qualificação e situação operacional.
+Cobertura documental por fornecedor, tipo, validade, status e responsável.
+Documentos vencidos e a vencer por janela de tempo.
+Fiscalizações por período, fiscal, fornecedor, projeto, resultado e status.
+Não conformidades por gravidade, origem, responsável, prazo, atraso e estado.
+Planos de ação por decisão, prazo e taxa de encerramento.
+Histórico de decisões de qualificação, suspensão e desbloqueio.
+13. Requisitos não funcionais
+[TABLE]
+ID | Categoria | Requisito
+RNF-001 | Segurança | Todo tráfego deve usar HTTPS; senhas com algoritmo adaptativo; cookies seguros; proteção CSRF quando aplicável.
+RNF-002 | Autorização | Validar permissão no servidor em todas as operações e arquivos, nunca apenas na interface.
+RNF-003 | Arquivos | Armazenamento privado, URLs temporárias, validação de MIME/tamanho, checksum e nomes internos não previsíveis.
+RNF-004 | Auditoria | Logs críticos imutáveis para usuários comuns, com retenção definida e consulta autorizada.
+RNF-005 | LGPD | Minimização, finalidade explícita, controle de acesso, retenção e procedimento de atendimento a titulares.
+RNF-006 | Disponibilidade | Meta inicial proposta de 99,5% mensal, excluindo manutenção programada.
+RNF-007 | Desempenho | 95% das páginas e consultas usuais em até 2 s sob a carga de referência; uploads indicam progresso.
+RNF-008 | Capacidade | Planejar inicialmente para 2.000 fornecedores, 100 usuários internos, 1.000 externos e 50 acessos simultâneos.
+RNF-009 | Responsividade | Operações críticas utilizáveis a partir de 360 px de largura, especialmente fiscalização e upload.
+RNF-010 | Acessibilidade | Alvo WCAG 2.2 AA nos fluxos principais: teclado, foco, contraste, rótulos, erros e status não apenas por cor.
+RNF-011 | Compatibilidade | Duas versões estáveis mais recentes de Chrome e Edge; Safari/Firefox em melhor esforço validado.
+RNF-012 | Backup | Backup automático do banco e política de recuperação testada; arquivos com redundância conforme provedor.
+RNF-013 | Observabilidade | Logs estruturados, monitoramento de erros, métricas de jobs e correlação por requisição.
+RNF-014 | Privacidade | Dados sensíveis não aparecem em URL, logs de aplicação, notificações ou mensagens de erro.
+RNF-015 | Manutenibilidade | Módulos separados, migrations versionadas, testes automatizados dos estados e regras críticas.
+RNF-016 | Localização | Datas, números, mensagens e fuso apresentados em pt-BR de forma consistente.
+[/TABLE]
+
+13.1 Carga de referência
+Os números de capacidade são premissas técnicas iniciais, não estimativas do volume atual da Lifting. Antes do dimensionamento de produção, deverão ser confirmados: quantidade de fornecedores, usuários, documentos por mês, tamanho médio de arquivo, fiscalizações simultâneas e política de retenção.
+14. Auditoria, LGPD e segurança de processo
+14.1 Eventos obrigatoriamente auditados
+Login, falha relevante de autenticação, recuperação, bloqueio e alteração de perfil/permissão.
+Criação, alteração de criticidade, mudança de categoria, inativação e reativação de fornecedor.
+Envio, visualização sensível, download autorizado, aprovação e rejeição de documento.
+Decisão de qualificação, ressalva, exceção, suspensão, bloqueio e desbloqueio.
+Criação, início, conclusão, cancelamento e retificação de fiscalização.
+Criação, mudança de gravidade/prazo, revisão de plano, verificação, encerramento e reabertura de NC.
+Alterações em matriz de requisitos, modelos de checklist e parâmetros de alerta.
+14.2 Conteúdo mínimo do log
+[TABLE]
+Campo | Descrição
+Ator | Usuário e tipo de conta; usar identificador do sistema.
+Ação | Verbo padronizado, entidade e identificador.
+Data/hora | Timestamp com fuso registrado de forma inequívoca.
+Contexto | Origem da interface/API, IP quando legítimo, sessão e correlação.
+Antes/depois | Somente campos relevantes, mascarando segredos e dados que não devem ser replicados.
+Motivo | Obrigatório em decisões sensíveis e alterações excepcionais.
+Visibilidade | Interna, externa ou restrita, para evitar vazamento ao fornecedor.
+[/TABLE]
+
+14.3 Controles de privacidade
+Coletar apenas dados pessoais necessários de contatos e responsáveis; não solicitar documentos pessoais na v0.1.
+Informar finalidade e canal de privacidade nos termos do portal do fornecedor.
+Definir quem pode exportar dados e registrar exportações sensíveis.
+Aplicar política de retenção por categoria de registro e bloqueio legal quando aplicável.
+Criar procedimento administrativo para correção, anonimização ou exclusão quando legalmente possível, sem comprometer obrigações de auditoria.
+15. Critérios de aceite da versão 0.1
+[TABLE]
+Definição de MVP concluído: A versão só é considerada funcional quando um fornecedor percorre o ciclo completo de convite até qualificação e uma fiscalização gera uma NC tratada e encerrada, com documentos, permissões e auditoria funcionando de ponta a ponta.
+[/TABLE]
+
+[TABLE]
+ID | Cenário | Critério verificável
+CA-01 | CNPJ duplicado | Dado um fornecedor existente, ao informar o mesmo CNPJ normalizado, o sistema bloqueia a duplicidade e oferece abrir o cadastro existente.
+CA-02 | Convite | Ao enviar convite, o destinatário recebe link único; após ativação ou expiração, o mesmo link não pode ser reutilizado.
+CA-03 | Isolamento | Conta de fornecedor não consegue listar, abrir por URL, buscar, baixar ou inferir dados de outro CNPJ.
+CA-04 | Matriz | Ao definir categoria e criticidade, o portal gera exatamente os requisitos aplicáveis e sinaliza os obrigatórios.
+CA-05 | Upload inválido | Arquivo fora de formato/tamanho é recusado com mensagem clara, sem perder os demais dados do formulário.
+CA-06 | Versionamento | Nova versão documental mantém arquivo, metadados e pareceres das versões anteriores.
+CA-07 | Rejeição | Documento não pode ser rejeitado sem justificativa externa; o fornecedor visualiza o motivo e pode reenviar.
+CA-08 | Vencimento | Mudança de data faz o job classificar corretamente vencendo/vencido e criar notificações sem duplicidade indevida.
+CA-09 | Qualificação | Fornecedor com requisito obrigatório não atendido não recebe aprovação normal.
+CA-10 | Ressalva | Aprovação com ressalvas exige condição, prazo, responsável e aprovador, todos visíveis na ficha.
+CA-11 | Checklist | Alterar o modelo não muda fiscalizações já iniciadas ou concluídas.
+CA-12 | Mobile | Fiscal consegue iniciar, responder, anexar foto e concluir em viewport de 360 px sem rolagem horizontal.
+CA-13 | Conclusão | Fiscalização não conclui com item obrigatório sem resposta ou evidência exigida.
+CA-14 | NC automática | Resposta não conforme configurada cria rascunho de NC ligado ao item e suas evidências.
+CA-15 | Plano | Fornecedor salva rascunho e envia plano; fiscal aceita ou devolve com justificativa.
+CA-16 | Encerramento | NC só encerra após verificação; a reabertura preserva o encerramento anterior.
+CA-17 | Dashboard | Cada KPI corresponde à lista filtrada e respeita as permissões do usuário.
+CA-18 | Auditoria | Alterações e decisões críticas exibem ator, data, ação, motivo e valores relevantes antes/depois.
+CA-19 | Arquivo privado | Link expirado ou usuário sem permissão não consegue acessar o arquivo.
+CA-20 | Exportação | Exportação usa os filtros atuais e não inclui campos sem permissão.
+[/TABLE]
+
+15.1 Critérios de qualidade para homologação
+Nenhum defeito crítico ou alto aberto nos fluxos de acesso, isolamento, documentos, fiscalização ou NC.
+Regras críticas cobertas por testes automatizados e cenários UAT aprovados pelos donos do processo.
+Permissões validadas com ao menos uma conta de cada perfil.
+Backup, restauração, expiração de links e acesso privado a arquivos testados em ambiente de homologação.
+Textos, e-mails, motivos de rejeição e estados revisados por usuários reais de Compras, QSMS e fornecedor-piloto.
+Treinamento rápido e manual operacional mínimos disponíveis antes da entrada em produção.
+16. Decisões pendentes para validação
+[TABLE]
+ID | Tema | Pergunta | Responsável sugerido
+D-01 | Governança | Decisões sensíveis poderão ser individuais ou exigirão aprovação conjunta de Compras e QSMS por criticidade? | Diretoria / Operação
+D-02 | Criticidade | Quais critérios objetivos definem baixa, média, alta e crítica? | Compras + QSMS
+D-03 | Categorias | Qual taxonomia inicial de materiais e serviços será adotada? | Suprimentos
+D-04 | Documentos | Quais tipos são obrigatórios por categoria e qual a validade? | Compras + QSMS/Jurídico
+D-05 | Aprovadores | Quais usuários de Compras e QSMS recebem permissão para cada decisão sensível? | Compras + QSMS
+D-06 | SLA | Quais prazos valem para análise documental e correção de NC por gravidade? | Áreas responsáveis
+D-07 | Bloqueios | Que eventos bloqueiam automaticamente e quais apenas geram alerta? | Compras + QSMS
+D-08 | Projetos/contratos | Serão cadastrados no portal ou apenas referenciados por código/nome? | Operação + TI
+D-09 | Indicador ICO | A fórmula proposta será usada, ajustada ou adiada? | Dono do processo
+D-10 | Notificações | Quais destinatários e escalonamentos evitam excesso de e-mails? | Usuários-chave
+D-11 | Retenção | Por quanto tempo manter documentos, evidências, logs e dados de contatos? | Jurídico/DPO + TI
+D-12 | Identidade | Login local no MVP ou integração com Microsoft/Google para contas internas? | TI
+D-13 | Infraestrutura | Hospedagem em nuvem ou ambiente próprio; provedor de storage e e-mail. | TI + Diretoria
+D-14 | Fornecedor-piloto | Quais 5 a 10 fornecedores representam melhor os fluxos e riscos iniciais? | Suprimentos
+[/TABLE]
+
+16.1 Ordem sugerida de validação
+Workshop de 60 a 90 minutos com Suprimentos/Compras, QSMS e TI para validar papéis, permissões sensíveis e fluxo.
+Levantamento da planilha/base atual e amostra de documentos reais, removendo dados sensíveis quando necessário.
+Definição da primeira categoria-piloto, matriz de requisitos e checklist correspondente.
+Validação dos wireframes e termos usados pelo portal antes de iniciar regras complexas.
+Aprovação do backlog MUST e registro formal do que será adiado.
+17. Entregas e evolução
+17.1 Fatias do MVP
+[TABLE]
+Fatia | Resultado demonstrável | Módulos
+F1 - Fundação | Usuários internos acessam com permissões e auditoria básica. | Login, RBAC, usuários, logs
+F2 - Fornecedor | Compras convida e valida um fornecedor; portal externo funciona. | Cadastro, contatos, categorias, convite
+F3 - Documentação | Requisitos são aplicados; fornecedor envia e QSMS decide. | Matriz, documentos, versões, alertas
+F4 - Qualificação | Compras ou QSMS autorizado toma decisão rastreável e publica condições. | Processo, pareceres, decisão, ressalvas
+F5 - Fiscalização | QSMS executa checklist responsivo com evidências. | Modelos, agenda, execução, relatório
+F6 - Correção | NC vira plano de ação, verificação e encerramento. | NC, plano, prazos, notificações
+F7 - Gestão | Riscos e filas aparecem no dashboard e relatórios. | KPIs, exportações, auditoria completa
+[/TABLE]
+
+17.2 Evoluções após a v0.1
+[TABLE]
+Versão indicativa | Evoluções possíveis
+0.2 | Questionários ponderados de qualificação; avaliações periódicas; contratos e projetos completos; PWA instalável.
+0.3 | Integração CNPJ/certidões; ERP/Nasajon; gestão de funcionários, treinamentos e documentos pessoais quando necessário.
+0.4 | Assinatura eletrônica; integrações de acesso; dashboards avançados; score por categoria e histórico de desempenho.
+1.0 | Automação madura, SLAs consolidados, integrações produtivas, governança de dados e operação escalada.
+[/TABLE]
+
+17.3 Riscos de implementação
+[TABLE]
+Risco | Impacto | Mitigação
+Regras não validadas | Retrabalho e estados conflitantes. | Piloto com uma categoria e decisões registradas antes da codificação.
+Matriz excessivamente complexa | Cadastro difícil de manter. | Começar com regras documentais simples e versionadas.
+Baixa adesão em campo | Fiscalizações continuam fora do portal. | Fluxo mobile curto, piloto acompanhado e feedback semanal.
+Excesso de notificações | Usuários ignoram alertas. | Eventos essenciais, digest opcional e escalonamento configurável.
+Migração ruim | Dados duplicados ou sem dono. | Modelo de importação, validação e homologação da base antes do corte.
+Vazamento entre fornecedores | Risco jurídico e reputacional crítico. | Isolamento no servidor, testes de autorização e URLs privadas.
+Arquivos sem governança | Custo, risco e busca ineficiente. | Limites, checksum, metadados, retenção e storage privado desde o início.
+[/TABLE]
+
+18. Condição para iniciar o desenvolvimento
+O desenvolvimento pode começar pela fundação técnica, mas o fluxo de negócio só deve ser fechado depois que os itens abaixo tiverem um responsável e uma decisão registrada.
+Dono do produto e aprovador do processo nomeados.
+Perfis e segregação de acesso validados.
+Categoria-piloto escolhida com ao menos cinco fornecedores reais de referência.
+Matriz inicial de documentos preenchida e aprovada.
+Um checklist real selecionado para a primeira fiscalização.
+Gravidades, prazos e regras de bloqueio aprovados.
+Política de arquivos, retenção e LGPD definida em nível suficiente para o MVP.
+Infraestrutura e responsáveis por homologação acordados.
+Backlog MUST congelado para a primeira entrega e SHOULD priorizado separadamente.
+[TABLE]
+Resultado esperado: Com essas decisões, a especificação 0.1 pode virar backlog técnico, modelo de banco, protótipo navegável e plano de testes sem a IA ou a equipe inventarem regras no meio do caminho.
+[/TABLE]
+
+Apêndice A - Glossário
+[TABLE]
+Termo | Definição
+Fornecedor | Pessoa jurídica cadastrada por CNPJ que fornece material, serviço ou ambos.
+Requisito | Evidência ou condição necessária conforme categoria e criticidade.
+Qualificação | Processo formal que avalia cadastro e requisitos e resulta em decisão.
+Ressalva | Aprovação condicionada a prazo, obrigação ou exceção formal.
+Fiscalização | Verificação programada ou avulsa realizada com checklist e evidências.
+Evidência | Foto, arquivo, registro ou observação que sustenta uma resposta ou decisão.
+Não conformidade (NC) | Desvio em relação a requisito, padrão, contrato ou checklist.
+Plano de ação | Resposta estruturada para tratar causa, correção, responsável, prazo e prova.
+Criticidade | Nível de impacto potencial associado ao fornecedor/serviço.
+Situação operacional | Condição atual de uso: regular, atenção, irregular, suspenso ou bloqueado.
+ICO | Índice de Conformidade Operacional proposto para a v0.1.
+RBAC | Controle de acesso baseado em papéis e permissões.
+Snapshot | Cópia imutável de um modelo/regra usada em um evento histórico.
+[/TABLE]
+
+Apêndice B - Fontes conceituais
+A especificação foi construída a partir do objetivo informado para a Lifting e da análise conceitual de portais de gestão de fornecedores, especialmente o ciclo público apresentado pela Suricatta: cadastro, qualificação, documentos, monitoramento, desvios, auditorias e desempenho.
+Suricatta SGF: https://www.suricatta.com.br/sgf/
+Surisoft - Ambiente Gerencial: https://www.surisoft.com.br/
+Portal público de fornecedores do Grupo CBO: https://fornecedores.grupocbo.com.br/pt-BR/cadastro-fornecedor/pre-cadastro
+Apêndice C - Resumo executivo do backlog MUST
+Autenticação, RBAC e isolamento entre fornecedores.
+Cadastro por CNPJ, categorias, criticidade e responsáveis.
+Matriz de requisitos e gestão documental versionada.
+Qualificação com decisão e ressalvas auditáveis.
+Checklists versionados e fiscalização responsiva com evidências.
+Não conformidades, planos de ação, verificação e prazos.
+Dashboard acionável, notificações, exportações essenciais e auditoria.

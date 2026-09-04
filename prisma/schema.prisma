@@ -1,0 +1,180 @@
+// Portal de Fiscalização e Gestão de Fornecedores - Lifting
+// Schema da fatia F0/F1 (fundação + acesso e autorização).
+// Fonte de verdade das regras: docs/REGRAS_FUNCIONAIS.md
+//
+// Este schema modela SOMENTE o necessário para autenticação, RBAC,
+// permissões sensíveis e auditoria. Entidades de fornecedor, documentos,
+// fiscalização e NC entram nas fatias F2+ (ver docs/DECISOES_PENDENTES.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Organização (fornecedor) - modelo mínimo para suportar o isolamento externo
+// desde já (RF-006). O cadastro completo (contatos, categorias, criticidade)
+// é implementado na fatia F2, conforme modelar-dominio-fornecedores.
+// ---------------------------------------------------------------------------
+model Organization {
+  id        String   @id @default(cuid())
+  cnpj      String   @unique // somente dígitos, normalizado (RN-001)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  auditLogs AuditLog[]
+
+  @@map("organizations")
+}
+
+enum UserRole {
+  ADMIN_TI
+  COMPRAS
+  QSMS
+  FORNECEDOR_ADMIN
+  FORNECEDOR_COLABORADOR
+}
+
+enum UserStatus {
+  INVITED // criado, aguardando definição de senha
+  ACTIVE
+  BLOCKED
+  INACTIVE // desligado/inativado - histórico preservado
+}
+
+// Permissões sensíveis concedidas individualmente a usuários de COMPRAS/QSMS.
+// Ver docs/REGRAS_FUNCIONAIS.md - "Perfis-base internos".
+enum SensitivePermission {
+  QUALIFICATION_DECIDE
+  SUPPLIER_SUSPEND
+  SUPPLIER_BLOCK
+  SUPPLIER_UNBLOCK
+  EXCEPTION_ACCEPT
+  NC_REOPEN
+}
+
+model User {
+  id                String     @id @default(cuid())
+  name              String
+  email             String     @unique
+  passwordHash      String? // nulo enquanto o convite não foi ativado (status INVITED)
+  role              UserRole
+  status            UserStatus @default(INVITED)
+
+  // Isolamento externo: obrigatório para perfis FORNECEDOR_*, sempre nulo
+  // para perfis internos (ADMIN_TI/COMPRAS/QSMS). Validado em serviço, não
+  // apenas no schema, porque Prisma não expressa constraint condicional.
+  organizationId    String?
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  sessions              Session[]
+  passwordResetTokens   PasswordResetToken[]
+  grantedPermissions    UserPermission[]        @relation("PermissionHolder")
+  permissionsGrantedBy  UserPermission[]        @relation("PermissionGrantor")
+  auditLogsAsActor      AuditLog[]               @relation("AuditActor")
+
+  @@index([organizationId])
+  @@index([role])
+  @@map("users")
+}
+
+// Permissão sensível concedida a um usuário específico (não ao perfil).
+model UserPermission {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation("PermissionHolder", fields: [userId], references: [id], onDelete: Cascade)
+  permission  SensitivePermission
+
+  grantedById String
+  grantedBy   User                @relation("PermissionGrantor", fields: [grantedById], references: [id])
+  grantedAt   DateTime            @default(now())
+
+  revokedAt   DateTime?
+  revokedById String?
+
+  @@unique([userId, permission, revokedAt], name: "unique_active_grant")
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Somente o hash do token opaco fica no banco; o valor em claro vai no cookie.
+  tokenHash     String   @unique
+
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+
+  ipAddress     String?
+  userAgent     String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  usedAt     DateTime?
+
+  requestedIp String?
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// Trilha de auditoria imutável (RNF-004, RF-118, RF-119, RF-120).
+// Nunca é editada ou apagada pela interface.
+model AuditLog {
+  id             String   @id @default(cuid())
+
+  actorId        String?
+  actor          User?    @relation("AuditActor", fields: [actorId], references: [id])
+  actorLabel     String? // preenchido quando o ator não é um usuário autenticado (ex.: "sistema", "anônimo")
+
+  action         String // verbo padronizado, ex.: "auth.login.success", "user.permission.grant"
+  entityType     String // ex.: "User", "Session"
+  entityId       String?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  reason         String? // motivo/justificativa quando aplicável a decisões sensíveis
+
+  before         Json? // estado anterior minimizado (nunca segredo/senha/token)
+  after          Json? // estado posterior minimizado
+
+  context        Json? // { source: "web"|"api", ip, userAgent, correlationId }
+  visibility     String   @default("interna") // interna | externa | restrita
+
+  createdAt      DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
