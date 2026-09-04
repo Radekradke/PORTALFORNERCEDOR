@@ -6,6 +6,8 @@ import {
   COMPLIANCE_STATUS_LABELS,
   DOCUMENT_VERSION_STATUS_LABELS,
   QUALIFICATION_STATUS_LABELS,
+  INSPECTION_STATUS_LABELS,
+  INSPECTION_RESPONSE_LABELS,
 } from "./nav-config";
 
 const REGISTRATION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
@@ -89,5 +91,34 @@ const QUALIFICATION_VARIANT: Record<string, "default" | "secondary" | "destructi
 export function QualificationStatusBadge({ status }: { status: string }) {
   return (
     <Badge variant={QUALIFICATION_VARIANT[status] ?? "default"}>{QUALIFICATION_STATUS_LABELS[status] ?? status}</Badge>
+  );
+}
+
+const INSPECTION_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  PROGRAMADA: "secondary",
+  EM_ANDAMENTO: "warning",
+  CONCLUIDA: "success",
+  CANCELADA: "destructive",
+};
+
+export function InspectionStatusBadge({ status }: { status: string }) {
+  return (
+    <Badge variant={INSPECTION_STATUS_VARIANT[status] ?? "default"}>{INSPECTION_STATUS_LABELS[status] ?? status}</Badge>
+  );
+}
+
+const INSPECTION_RESPONSE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  CONFORME: "success",
+  CONFORME_COM_RESSALVA: "warning",
+  NAO_CONFORME: "destructive",
+  NAO_APLICAVEL: "secondary",
+};
+
+export function InspectionResponseBadge({ response }: { response: string | null }) {
+  if (!response) return <span className="text-xs text-muted-foreground">Sem resposta</span>;
+  return (
+    <Badge variant={INSPECTION_RESPONSE_VARIANT[response] ?? "default"}>
+      {INSPECTION_RESPONSE_LABELS[response] ?? response}
+    </Badge>
   );
 }

@@ -19,7 +19,7 @@ import {
 import { CONTACT_TYPE_LABELS, SUPPLY_TYPE_LABELS } from "@/components/layout/nav-config";
 import { formatCnpj } from "@/lib/cnpj";
 import { formatDateTime } from "@/lib/time";
-import { ReasonActionButton } from "../reason-action-button";
+import { ReasonActionButton } from "@/components/forms/reason-action-button";
 import { GovernanceForm } from "./governance-form";
 import { ResponsiblesSection } from "./responsibles-section";
 import {

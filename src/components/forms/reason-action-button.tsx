@@ -16,8 +16,10 @@ export interface ReasonActionState {
 /**
  * Botão que expande um formulário com campo de motivo antes de confirmar uma
  * decisão sensível (validar, rejeitar, solicitar ajustes, suspender,
- * bloquear, desbloquear, inativar, reativar). Todas essas ações pedem
- * confirmação e, quando aplicável, justificativa (diretrizes de experiência).
+ * bloquear, desbloquear, inativar, reativar, cancelar). Todas essas ações
+ * pedem confirmação e, quando aplicável, justificativa (diretrizes de
+ * experiência). Componente genérico compartilhado entre fornecedores,
+ * qualificação e fiscalização — não é específico de nenhum módulo.
  */
 export function ReasonActionButton({
   action,

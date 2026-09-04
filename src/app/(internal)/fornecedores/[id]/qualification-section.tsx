@@ -1,7 +1,7 @@
 import { QualificationStatusBadge } from "@/components/layout/status-badges";
 import { QUALIFICATION_RESULT_LABELS } from "@/components/layout/nav-config";
 import { formatDate, formatDateTime } from "@/lib/time";
-import { ReasonActionButton } from "../reason-action-button";
+import { ReasonActionButton } from "@/components/forms/reason-action-button";
 import { startRequalificationAction } from "@/modules/qualifications/actions/qualification-actions";
 import { QualificationDecisionForm } from "./qualification-decision-form";
 

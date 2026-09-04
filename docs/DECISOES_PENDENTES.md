@@ -16,8 +16,8 @@ de `docs/ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt`).
 | D-04 | Documentos | Tipos obrigatórios por categoria e validade. | Mecanismo pronto (tela "Requisitos": tipos de documento + matriz por categoria/criticidade); quais tipos existem e com qual validade em cada categoria é decisão operacional, não travada em código. |
 | D-05 | Aprovadores | Quais usuários específicos de Compras/QSMS recebem cada permissão sensível. | Mecanismo pronto (tela "Usuários e permissões"); a lista de quem recebe o quê é decisão operacional, não travada em código. |
 | D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido) nem para qualificação (RF-060/RF-061 não definem prazo-alvo de decisão); NC entra em F6. |
-| D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). |
-| D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | Não iniciado (entra em F5). |
+| D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). F5 marca item de checklist com `generatesNonConformity`/`defaultSeverity` (RF-073) só como metadado preparado para a F6 — nenhum efeito automático (bloqueio, NC) nasce disso ainda (RN-016: sugestão nunca equivale à decisão). |
+| D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | F5 usa a opção mais simples: `Inspection.projectOrLocation` é texto livre, sem cadastro de `Project`/`Contract`. Suficiente para registrar a fiscalização; relatórios por projeto/contrato ficam limitados a esse texto até a decisão ser tomada. |
 | D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | Não iniciado (entra em F7). Enquanto não aprovado, qualquer indicador é apenas informativo. |
 | D-10 | Notificações | Destinatários e escalonamentos que evitam excesso de e-mail. | Não iniciado (entra em F3+). |
 | D-11 | Retenção | Tempo de retenção de documentos, evidências, logs e contatos (LGPD). | Não iniciado. |
@@ -163,3 +163,49 @@ serem re-discutidas a cada revisão:
   intermediários por perfil.
 - **RF-067 (comprovante imprimível) não foi implementado** (é SHOULD) —
   mesmo padrão de adiamento de RF-052 (exportação, F3).
+
+## Decisões de implementação registradas na F5 (fiscalização)
+
+- **`ChecklistTemplateVersion` (citada em `docs/REGRAS_FUNCIONAIS.md` como
+  entidade própria) foi fundida no snapshot da fiscalização**, mesmo padrão
+  de simplificação já aplicado nas fatias anteriores: autoria do checklist
+  é sempre sobre a tabela "viva" (`ChecklistTemplate`/`Section`/`Item`); o
+  congelamento exigido por RF-074/RN-013 acontece gravando
+  `Inspection.checklistSnapshot` (JSON) no instante em que a fiscalização é
+  programada — não existe uma tabela própria de histórico de versões do
+  modelo. Editar o modelo depois nunca afeta uma fiscalização já criada,
+  porque ela nem consulta mais a tabela viva.
+- **Autoria de checklist é só "adicionar"**: a tela de checklists permite
+  criar template, seção e item, mas não editar ou reordenar um item já
+  criado (só ativar/inativar o template inteiro). Suficiente para o MVP —
+  corrigir um item errado hoje significa inativar o checklist e criar outro.
+  Registrado aqui para não ser lido como esquecimento.
+- **"Fiscal" é qualquer usuário QSMS ativo**, sem vínculo obrigatório com
+  `SupplierResponsible` (tipo `FISCAL`, já existente desde a F2) — a tela de
+  programação lista todos os QSMS ativos livremente. Vincular automaticamente
+  o fiscal responsável cadastrado do fornecedor é um refinamento de UX válido
+  para depois, não uma regra de negócio quebrada por não fazer isso agora.
+- **RF-075 ("tipo" de fiscalização) é texto livre**, mesma lógica de D-02/
+  D-03: o campo existe, a taxonomia de tipos é decisão operacional.
+- **"Iniciar fiscalização" (PROGRAMADA → EM_ANDAMENTO) é automático na
+  primeira resposta salva**, não um botão à parte — mesma leniência já
+  usada para "iniciar análise" de cadastro (F2) e de documento (F3), para
+  não forçar um clique extra sem valor no fluxo mobile.
+- **RF-072 (evidência/observação obrigatória por resposta) simplificado
+  para "obrigatório: sim/não" por tipo de evidência**, sem diferenciar
+  foto de documento — um único campo de anexo aceita PDF/JPG/PNG (reaproveita
+  `validateUploadedFile` da F3). A orientação de preenchimento (`guidance`)
+  cobre o que uma checagem mais granular faria via texto.
+- **RF-133/EXT-05 ("resultados liberados")**: não existe um flag de
+  liberação manual separado — nesta fatia, "liberado ao fornecedor" é
+  sinônimo de fiscalização com status `CONCLUIDA`. Programada, em andamento
+  e cancelada nunca aparecem no portal externo (RN-021), mesmo por URL
+  direta — `getInspectionDetail` devolve "não encontrado" em vez de lançar
+  erro de autorização, para não revelar a diferença entre "não existe" e
+  "existe mas não é seu/não foi liberado".
+- **RF-073 (item sugere NC) só grava metadado** (`generatesNonConformity`,
+  `defaultSeverity`) no snapshot da fiscalização — a criação de fato de uma
+  `NonConformity` a partir de um item "não conforme" é responsabilidade da
+  F6, que ainda não existe. RF-081 (relatório simples, SHOULD) também ficou
+  fora desta fatia — a tela de detalhe já mostra tudo que um relatório
+  teria, só não gera um documento separado.

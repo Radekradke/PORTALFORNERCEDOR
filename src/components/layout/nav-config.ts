@@ -15,7 +15,8 @@ export const INTERNAL_NAV: NavItem[] = [
   { href: "/categorias", label: "Categorias", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
   { href: "/requisitos", label: "Requisitos", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
   { href: "/documentos", label: "Documentos", enabled: true },
-  { href: "/fiscalizacoes", label: "Fiscalizações", enabled: false },
+  { href: "/checklists", label: "Checklists", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
+  { href: "/fiscalizacoes", label: "Fiscalizações", enabled: true },
   { href: "/nao-conformidades", label: "Não conformidades", enabled: false },
   { href: "/relatorios", label: "Relatórios", enabled: false },
   { href: "/notificacoes", label: "Notificações", enabled: false },
@@ -28,7 +29,7 @@ export const EXTERNAL_NAV: NavItem[] = [
   { href: "/portal-fornecedor/empresa", label: "Minha empresa", enabled: true },
   { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: true },
   { href: "/portal-fornecedor/qualificacao", label: "Qualificação", enabled: true },
-  { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: false },
+  { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: true },
   { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: false },
   { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
   { href: "/portal-fornecedor/usuarios", label: "Usuários da empresa", roles: ["FORNECEDOR_ADMIN"], enabled: false },
@@ -131,6 +132,20 @@ export const QUALIFICATION_RESULT_LABELS: Record<string, string> = {
   APROVADO: "Aprovado",
   APROVADO_COM_RESSALVAS: "Aprovado com ressalvas",
   REPROVADO: "Reprovado",
+};
+
+export const INSPECTION_STATUS_LABELS: Record<string, string> = {
+  PROGRAMADA: "Programada",
+  EM_ANDAMENTO: "Em andamento",
+  CONCLUIDA: "Concluída",
+  CANCELADA: "Cancelada",
+};
+
+export const INSPECTION_RESPONSE_LABELS: Record<string, string> = {
+  CONFORME: "Conforme",
+  CONFORME_COM_RESSALVA: "Conforme com ressalva",
+  NAO_CONFORME: "Não conforme",
+  NAO_APLICAVEL: "Não aplicável",
 };
 
 export const COMPLIANCE_STATUS_LABELS: Record<string, string> = {

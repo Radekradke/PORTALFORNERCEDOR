@@ -44,7 +44,12 @@ export type Action =
   // F4 — qualificação
   | "qualification.view"
   | "qualification.manage" // iniciar rodada/requalificação (não é a decisão em si)
-  | "qualification.decide";
+  | "qualification.decide"
+  // F5 — fiscalização
+  | "checklist.view"
+  | "checklist.manage"
+  | "inspection.view"
+  | "inspection.manage"; // programar, executar, concluir, cancelar
 
 export interface ResourceContext {
   /** Fornecedor dono do recurso avaliado — obrigatório para ações "*.own" e para conferir isolamento externo. */
@@ -171,6 +176,27 @@ export function authorize(actor: Actor, action: Action, resource?: ResourceConte
     // (docs/REGRAS_FUNCIONAIS.md, RF-063, RN-010).
     case "qualification.decide":
       return hasPermission(actor, "QUALIFICATION_DECIDE");
+
+    // Fiscalizações: QSMS gerencia (programa/executa/conclui/cancela),
+    // Admin TI e Compras só visualizam (tabela "Resumo de permissões" -
+    // Fiscalizações: V/V/G). Fornecedor só vê as do próprio CNPJ e só as
+    // concluídas (RN-021, EXT-05, RF-133 — filtrado na camada de serviço,
+    // não aqui).
+    case "checklist.view":
+      return actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS";
+    case "checklist.manage":
+      return actor.role === "QSMS";
+
+    case "inspection.view":
+      if (actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS") {
+        return true;
+      }
+      if (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") {
+        return isOwnSupplier(actor, resource);
+      }
+      return false;
+    case "inspection.manage":
+      return actor.role === "QSMS";
 
     default:
       return false;

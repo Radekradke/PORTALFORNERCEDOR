@@ -11,7 +11,7 @@ também `CLAUDE.md` antes de alterar domínio, permissões, estados ou fluxos.
 
 ## Status desta entrega
 
-**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação).**
+**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação) + F5 (Fiscalização).**
 
 F0/F1 incluem: scaffold Next.js/TypeScript/Tailwind, Docker Compose
 (PostgreSQL + MinIO + Mailpit), autenticação local (Argon2id), sessão em
@@ -48,11 +48,25 @@ obrigatório não atendido (RN-010, CA-09) — só resta aprovar com ressalva
 é sempre manual e nunca apaga a rodada anterior (RF-065); o resultado é
 publicado no portal do fornecedor.
 
-Fiscalização, NC e dashboard de risco **ainda não existem** — entram nas
-fatias F5 a F7 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o menu do
-portal externo já mostram a arquitetura de informação completa da
-especificação, com os itens ainda não implementados marcados como "em breve"
-(não são links falsos).
+F5 adiciona: modelos de checklist (`ChecklistTemplate`/`Section`/`Item`,
+RF-070 a RF-073) com respostas configuráveis por item (Conforme/Conforme
+com ressalva/Não conforme/Não aplicável) e regra de quando evidência ou
+observação é obrigatória; programação de fiscalização (`Inspection`,
+RF-075) que congela uma cópia do checklist no instante da criação (RF-074,
+RN-013 — editar o modelo depois nunca afeta uma fiscalização já criada);
+execução mobile-first com resposta por item salva progressivamente,
+retomada automática (PROGRAMADA → EM ANDAMENTO no 1º item respondido),
+anexo de foto/arquivo reaproveitando o storage privado da F3; conclusão
+bloqueada no servidor enquanto houver item pendente (RF-078) e cálculo de
+percentual de conformidade excluindo itens não aplicáveis (RN-015);
+cancelamento com motivo (RF-082); resultado publicado no portal do
+fornecedor só quando concluída (RF-133, EXT-05).
+
+NC e dashboard de risco **ainda não existem** — entram nas fatias F6 e F7
+(ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o menu do portal externo
+já mostram a arquitetura de informação completa da especificação, com os
+itens ainda não implementados marcados como "em breve" (não são links
+falsos).
 
 ## Stack
 
@@ -119,6 +133,10 @@ exige data de emissão, só PDF), `PPRA-PGR` (validade informada no envio) e
 `ALVARA` (sem vencimento), com regras vinculando-os às categorias
 "Materiais elétricos" e "Serviços de manutenção" por criticidade.
 
+**Checklist semeado**: "Inspeção de segurança em campo" (categoria Serviços
+de manutenção), com 2 seções e 3 itens prontos para programar uma
+fiscalização de teste em `/fiscalizacoes/novo`.
+
 ### Ferramentas locais
 
 - Aplicação: http://localhost:3000
@@ -131,7 +149,7 @@ exige data de emissão, só PDF), `PPRA-PGR` (validade informada no envio) e
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # TypeScript estrito
-npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo, estado de qualificação)
+npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo, estado de qualificação, resultado de fiscalização)
 npm run build       # build de produção
 
 # Testes de ponta a ponta (requer app rodando em http://localhost:3000,
@@ -151,9 +169,9 @@ npm run db:reset   # aplica migrations do zero e roda o seed automaticamente
 src/
   app/                    # rotas Next.js (App Router)
     (auth)/               # login, esqueci-senha, redefinir-senha
-    (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, usuários, auditoria
-    portal-fornecedor/    # portal externo (início, minha empresa, documentos, qualificação, histórico)
-    api/                  # health check, download privado de documento
+    (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, checklists, fiscalizações, usuários, auditoria
+    portal-fornecedor/    # portal externo (início, minha empresa, documentos, qualificação, fiscalizações, histórico)
+    api/                  # health check, download privado de documento/evidência
   modules/                # domínio/serviços por módulo coerente
     auth-access/          # login, sessão, recuperação de senha, authorize()
     users-permissions/    # usuários internos e permissões sensíveis
@@ -162,10 +180,12 @@ src/
     requirements/         # tipos de documento, matriz e aplicação (RF-030 a RF-038)
     documents/             # upload, versionamento, análise e conformidade (RF-040 a RF-052)
     qualifications/         # rodadas, decisão e bloqueio de aprovação normal (RF-060 a RF-067)
+    inspections/            # checklists, programação, execução e evidências (RF-070 a RF-082)
     audit/                # trilha de auditoria (interna e visível ao fornecedor)
   components/
     ui/                   # componentes shadcn/ui (button, input, table...)
     layout/                # sidebar, topbar, nav externa, badges de status
+    forms/                 # componentes de formulário compartilhados entre módulos (ex.: ReasonActionButton)
   lib/                    # env, prisma, senha, tokens, rate-limit, mail, storage, tempo, cnpj, validação de arquivo
 prisma/
   schema.prisma
@@ -197,11 +217,17 @@ docs/
   do recurso (`resource.supplierId === actor.supplierId`) para isolamento
   externo (RN-021, CA-03).
 - Toda mutação crítica (usuários, permissões, fornecedores, requisitos,
-  documentos, qualificação, situação operacional, login, logout) grava
-  `AuditLog` na
+  documentos, qualificação, fiscalizações, situação operacional, login,
+  logout) grava `AuditLog` na
   mesma transação; eventos relevantes ao fornecedor ficam marcados
   `visibility: "externa"` e só esses aparecem no histórico do portal
   externo — nunca dados de outro fornecedor nem anotações internas.
+- Evidência de fiscalização reaproveita o mesmo storage privado e validação
+  de arquivo (assinatura binária) dos documentos; o portal externo só
+  enxerga uma fiscalização (e suas evidências) quando ela está concluída —
+  buscar por ID uma fiscalização programada, em andamento, cancelada ou de
+  outro fornecedor devolve "não encontrado", nunca um erro que revele a
+  diferença (RN-021, CA-03).
 - Links de definição/redefinição de senha (reaproveitados também para
   convite de fornecedor) são de uso único, expiram em
   `PASSWORD_RESET_TTL_MINUTES` e nunca revelam se um e-mail existe no
@@ -221,8 +247,17 @@ docs/
 
 ## O que ainda não está pronto (limitações honestas desta fatia)
 
-- Não há fiscalização, NC ou dashboard de risco — a interface mostra esses
-  itens do menu como "em breve".
+- Não há não conformidade, plano de ação ou dashboard de risco — a
+  interface mostra esses itens do menu como "em breve".
+- Fiscalização (F5) não cria automaticamente uma não conformidade quando um
+  item marcado como "gera NC" é respondido como não conforme — isso é
+  metadado preparado para a F6, que ainda não existe. Também não há edição/
+  reordenação de item de checklist já criado (só criar novo ou inativar o
+  modelo inteiro) nem relatório exportável (RF-081, SHOULD) — a tela de
+  detalhe da fiscalização já mostra tudo, só não gera um arquivo separado.
+- Programação de fiscalização não valida vínculo com projeto/contrato
+  formal (D-08): é texto livre. "Tipo" de fiscalização também é texto
+  livre, sem taxonomia fixa (mesmo padrão de criticidade/categoria).
 - Qualificação (F4) não tem pareceres separados de Compras e QSMS (RF-062,
   SHOULD) nem comprovante imprimível (RF-067, SHOULD) — só a decisão final.
   Exceção formal de requisito (RF-037, já adiada na F3) continua sem
@@ -254,10 +289,12 @@ docs/
 
 ## Próxima fatia recomendada
 
-F5 — Fiscalização: modelos de checklist (`InspectionTemplate`,
-`InspectionTemplateItem`), programação e execução de fiscalização
-(`Inspection`, `InspectionAnswer`) com fluxo mobile-first (alvos de toque,
-progresso persistido, retomada), evidências com foto/documento
-(`Evidence`, reaproveitando `FileObject`/`StorageProvider` já existentes) e
-conclusão com relatório rastreável. Um item "não conforme" já deve nascer
-preparado para abrir uma não conformidade vinculada (F6).
+F6 — Não conformidade e plano de ação: criar `NonConformity` a partir de um
+item de fiscalização respondido como não conforme (consumindo o metadado
+`generatesNonConformity`/`defaultSeverity` já gravado no snapshot da F5) ou
+manualmente por usuário autorizado (RF-090); numeração única anual
+(RF-091, ex. NC-2026-0041); plano de ação do fornecedor com causa, ação,
+responsável, prazo e evidência (RF-094, reaproveitando o storage privado
+já existente); revisão (aceitar/rejeitar/ajustar) por QSMS ou Compras
+autorizado (RF-095); verificação e encerramento (RF-096); reabertura
+usando a permissão sensível `NC_REOPEN` já concedida no seed (RF-097).

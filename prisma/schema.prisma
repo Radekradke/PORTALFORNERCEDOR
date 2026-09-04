@@ -76,6 +76,11 @@ model User {
   documentVersionsReviewed  DocumentVersion[]   @relation("DocumentReviewer")
   qualificationsStarted     Qualification[]     @relation("QualificationStartedBy")
   qualificationsDecided     Qualification[]     @relation("QualificationDecidedBy")
+  inspectionsAsInspector    Inspection[]        @relation("InspectionInspector")
+  inspectionsCreated        Inspection[]        @relation("InspectionCreatedBy")
+  inspectionsConcluded      Inspection[]        @relation("InspectionConcludedBy")
+  inspectionsCancelled      Inspection[]        @relation("InspectionCancelledBy")
+  evidencesUploaded         Evidence[]          @relation("EvidenceUploadedBy")
 
   @@index([supplierId])
   @@index([role])
@@ -284,6 +289,7 @@ model Supplier {
   responsibles  SupplierResponsible[]
   requirements  SupplierRequirement[]
   qualifications Qualification[]
+  inspections   Inspection[]
 
   @@index([registrationStatus])
   @@index([operationalStatus])
@@ -330,6 +336,7 @@ model Category {
 
   supplierLinks SupplierCategory[]
   requirementRules RequirementRule[]
+  checklistTemplates ChecklistTemplate[]
 
   @@map("categories")
 }
@@ -496,6 +503,7 @@ model FileObject {
   createdAt DateTime @default(now())
 
   documentVersion DocumentVersion?
+  evidence        Evidence?
 
   @@map("file_objects")
 }
@@ -607,4 +615,180 @@ model Qualification {
   @@unique([supplierId, round])
   @@index([supplierId])
   @@map("qualifications")
+}
+
+// =============================================================================
+// F5 — Fiscalização
+// =============================================================================
+
+enum InspectionStatus {
+  PROGRAMADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+// RF-071. NAO_APLICAVEL é sempre uma resposta possível no domínio; cada item
+// pode restringir quais dessas quatro ele realmente aceita (allowedResponses).
+enum InspectionResponse {
+  CONFORME
+  CONFORME_COM_RESSALVA
+  NAO_CONFORME
+  NAO_APLICAVEL
+}
+
+// Modelo de checklist (RF-070). Autoria é sempre no "vivo": editar
+// seção/item aqui só afeta fiscalizações futuras ainda não criadas — RN-013
+// é garantida por `Inspection.checklistSnapshot`, não por uma tabela de
+// versões própria (ver decisão registrada em docs/DECISOES_PENDENTES.md:
+// `ChecklistTemplateVersion`, citada em docs/REGRAS_FUNCIONAIS.md como
+// entidade própria, foi fundida no snapshot da fiscalização).
+model ChecklistTemplate {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  active      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sections    ChecklistSection[]
+  inspections Inspection[]
+
+  @@map("checklist_templates")
+}
+
+model ChecklistSection {
+  id         String            @id @default(cuid())
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title      String
+  order      Int
+
+  items ChecklistItem[]
+
+  @@index([templateId])
+  @@map("checklist_sections")
+}
+
+// RF-071/RF-072/RF-073: por item, quais respostas são aceitas, quando
+// evidência/observação é obrigatória, e se ele sugere a criação de uma NC
+// (a NC em si — NonConformity — só existe a partir da F6; aqui fica só o
+// metadado que a fatia futura vai consumir).
+model ChecklistItem {
+  id        String           @id @default(cuid())
+  sectionId String
+  section   ChecklistSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  order     Int
+
+  text     String
+  guidance String? // orientação de preenchimento (RF-070)
+
+  allowedResponses      InspectionResponse[] @default([CONFORME, CONFORME_COM_RESSALVA, NAO_CONFORME, NAO_APLICAVEL])
+  evidenceRequiredOn     InspectionResponse[] @default([NAO_CONFORME]) // RF-072
+  observationRequiredOn  InspectionResponse[] @default([NAO_CONFORME, NAO_APLICAVEL]) // RF-072, RN-014
+
+  generatesNonConformity Boolean      @default(false) // RF-073
+  defaultSeverity        Criticality? // RF-073 — usado só quando generatesNonConformity
+
+  @@index([sectionId])
+  @@map("checklist_items")
+}
+
+// Fiscalização (RF-075 a RF-082, seção 5.5). `checklistSnapshot` congela
+// seções+itens do template no instante da criação (RF-074, RN-013): cada
+// item recebe um `id` estável dentro do JSON, referenciado por
+// `InspectionAnswer.itemId` — nunca a linha viva de `ChecklistItem`, para
+// que editar/excluir o item no modelo não afete fiscalizações já criadas
+// (RN-019, imutabilidade após conclusão).
+model Inspection {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  templateId String?
+  template   ChecklistTemplate? @relation(fields: [templateId], references: [id])
+  checklistSnapshot Json
+
+  // RF-075. Sem cadastro completo de projeto/contrato (D-08 continua
+  // pendente) — referência livre por texto, mesma linha de D-02/D-03.
+  projectOrLocation String?
+  type              String? // taxonomia de tipos de fiscalização é decisão operacional (mesmo padrão de D-02/D-03)
+
+  scheduledAt DateTime
+  inspectorId String
+  inspector   User     @relation("InspectionInspector", fields: [inspectorId], references: [id])
+
+  status    InspectionStatus @default(PROGRAMADA)
+  startedAt DateTime?
+
+  concludedAt           DateTime?
+  concludedById         String?
+  concludedBy           User?     @relation("InspectionConcludedBy", fields: [concludedById], references: [id])
+  // RN-015: conformidade = itens "conforme" / itens aplicáveis (exclui N/A) x 100.
+  conformityPercentage  Float?
+
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelledBy   User?     @relation("InspectionCancelledBy", fields: [cancelledById], references: [id])
+  cancelReason  String?
+
+  createdById String
+  createdBy   User   @relation("InspectionCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers InspectionAnswer[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("inspections")
+}
+
+// Uma resposta por item do snapshot (RF-076: salva progressivamente).
+// `itemId` refere-se ao id estável dentro de `Inspection.checklistSnapshot`
+// — não é FK para `ChecklistItem` (o item pode já não existir mais lá).
+model InspectionAnswer {
+  id           String     @id @default(cuid())
+  inspectionId String
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  itemId       String
+
+  response    InspectionResponse?
+  observation String?
+
+  answeredAt   DateTime?
+  answeredById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidences Evidence[]
+
+  @@unique([inspectionId, itemId])
+  @@index([inspectionId])
+  @@map("inspection_answers")
+}
+
+// Foto/arquivo anexado a uma resposta (RF-077). Reaproveita FileObject/
+// StorageProvider já usados para documentos — mesmo contrato de upload
+// privado, hash e chave interna não previsível (RNF-003).
+model Evidence {
+  id                 String           @id @default(cuid())
+  inspectionAnswerId String
+  inspectionAnswer   InspectionAnswer @relation(fields: [inspectionAnswerId], references: [id], onDelete: Cascade)
+
+  fileObjectId String     @unique
+  fileObject   FileObject @relation(fields: [fileObjectId], references: [id])
+
+  uploadedById String
+  uploadedBy   User   @relation("EvidenceUploadedBy", fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
+
+  @@index([inspectionAnswerId])
+  @@map("evidences")
 }

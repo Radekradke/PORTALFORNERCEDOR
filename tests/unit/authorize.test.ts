@@ -215,3 +215,30 @@ describe("authorize() — matriz de acesso F4 (qualificação)", () => {
     expect(authorize(adminComPermissaoIndevida, "qualification.decide")).toBe(false);
   });
 });
+
+describe("authorize() — matriz de acesso F5 (fiscalização)", () => {
+  it("checklists e fiscalizações são gerenciados por QSMS; Admin TI e Compras só visualizam", () => {
+    expect(authorize(makeActor({ role: "QSMS" }), "checklist.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "checklist.manage")).toBe(false);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "checklist.manage")).toBe(false);
+
+    expect(authorize(makeActor({ role: "QSMS" }), "inspection.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "inspection.manage")).toBe(false);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "inspection.manage")).toBe(false);
+
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "checklist.view")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "checklist.view")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "checklist.view")).toBe(true);
+  });
+
+  it("consulta de fiscalização é isolada por fornecedor para os perfis externos", () => {
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "inspection.view")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "inspection.view")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "inspection.view")).toBe(true);
+
+    const fornecedorA = makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "supplier-A" });
+    expect(authorize(fornecedorA, "inspection.view", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(fornecedorA, "inspection.view", { supplierId: "supplier-B" })).toBe(false);
+    expect(authorize(fornecedorA, "inspection.view")).toBe(false);
+  });
+});

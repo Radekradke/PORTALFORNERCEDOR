@@ -448,6 +448,65 @@ async function main() {
     console.log("  rodada de qualificação (1) aberta para Gama Industrial");
   }
 
+  // ---------------------------------------------------------------------
+  // F5 — Checklist de demonstração para fiscalização
+  // ---------------------------------------------------------------------
+  // Sem código único de negócio para checklist (diferente de Category e
+  // RequirementType), então a idempotência aqui é "criar só se não existir
+  // um checklist com este título" — suficiente para dado de demonstração.
+  const CHECKLIST_TITLE = "Inspeção de segurança em campo";
+  let checklist = await prisma.checklistTemplate.findFirst({ where: { title: CHECKLIST_TITLE } });
+  if (!checklist) {
+    checklist = await prisma.checklistTemplate.create({
+      data: { title: CHECKLIST_TITLE, categoryId: categoryIds.get("SERV-MANUT") },
+    });
+
+    const epiSection = await prisma.checklistSection.create({
+      data: { templateId: checklist.id, title: "EPIs e sinalização", order: 0 },
+    });
+    await prisma.checklistItem.create({
+      data: {
+        sectionId: epiSection.id,
+        order: 0,
+        text: "Uso correto de EPI por toda a equipe",
+        guidance: "Verificar capacete, óculos, luvas e calçado de segurança.",
+        allowedResponses: ["CONFORME", "CONFORME_COM_RESSALVA", "NAO_CONFORME", "NAO_APLICAVEL"],
+        evidenceRequiredOn: ["NAO_CONFORME"],
+        observationRequiredOn: ["NAO_CONFORME", "NAO_APLICAVEL"],
+        generatesNonConformity: true,
+        defaultSeverity: "ALTA",
+      },
+    });
+    await prisma.checklistItem.create({
+      data: {
+        sectionId: epiSection.id,
+        order: 1,
+        text: "Sinalização de área isolada e visível",
+        allowedResponses: ["CONFORME", "NAO_CONFORME"],
+        evidenceRequiredOn: [],
+        observationRequiredOn: ["NAO_CONFORME"],
+        generatesNonConformity: false,
+      },
+    });
+
+    const docsSection = await prisma.checklistSection.create({
+      data: { templateId: checklist.id, title: "Documentação em campo", order: 1 },
+    });
+    await prisma.checklistItem.create({
+      data: {
+        sectionId: docsSection.id,
+        order: 0,
+        text: "Equipe porta cópia da ART/PPRA vigente",
+        allowedResponses: ["CONFORME", "NAO_CONFORME", "NAO_APLICAVEL"],
+        evidenceRequiredOn: [],
+        observationRequiredOn: ["NAO_APLICAVEL"],
+        generatesNonConformity: false,
+      },
+    });
+
+    console.log(`  checklist ok: ${CHECKLIST_TITLE} (2 seções, 3 itens)`);
+  }
+
   console.log("Seed: concluído.");
 }
 
