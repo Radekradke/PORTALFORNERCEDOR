@@ -1,10 +1,9 @@
 // Portal de Fiscalização e Gestão de Fornecedores - Lifting
-// Schema das fatias F0/F1 (fundação + acesso e autorização), F2 (fornecedores)
-// e F3 (requisitos e documentos).
+// Schema das fatias F0/F1 (fundação + acesso e autorização), F2
+// (fornecedores), F3 (requisitos e documentos) e F4 (qualificação).
 // Fonte de verdade das regras: docs/REGRAS_FUNCIONAIS.md
 //
-// Qualificação, fiscalização e NC entram nas fatias F4+ (ver
-// docs/DECISOES_PENDENTES.md).
+// Fiscalização e NC entram nas fatias F5+ (ver docs/DECISOES_PENDENTES.md).
 
 generator client {
   provider = "prisma-client-js"
@@ -75,6 +74,8 @@ model User {
   uploadedFiles         FileObject[]
   documentVersionsSent      DocumentVersion[]   @relation("DocumentSubmitter")
   documentVersionsReviewed  DocumentVersion[]   @relation("DocumentReviewer")
+  qualificationsStarted     Qualification[]     @relation("QualificationStartedBy")
+  qualificationsDecided     Qualification[]     @relation("QualificationDecidedBy")
 
   @@index([supplierId])
   @@index([role])
@@ -282,6 +283,7 @@ model Supplier {
   categories    SupplierCategory[]
   responsibles  SupplierResponsible[]
   requirements  SupplierRequirement[]
+  qualifications Qualification[]
 
   @@index([registrationStatus])
   @@index([operationalStatus])
@@ -535,4 +537,74 @@ model DocumentVersion {
   @@index([status])
   @@index([validUntil])
   @@map("document_versions")
+}
+
+// =============================================================================
+// F4 — Qualificação
+// =============================================================================
+
+enum QualificationResult {
+  APROVADO
+  APROVADO_COM_RESSALVAS
+  REPROVADO
+}
+
+// Rodada do processo de qualificação (RF-060, seção 5.2). RF-065: uma nova
+// rodada (requalificação) nunca apaga a anterior — cada rodada é uma linha
+// própria, e "round" cresce a cada requalificação. "Não iniciada" (seção
+// 5.2) é a ausência de qualquer rodada para o fornecedor — não é persistida
+// (mesmo padrão de "Pendente" em SupplierRequirement na F3). "Documentação
+// pendente" e "Em validação" também não são persistidas: são calculadas na
+// leitura a partir das pendências obrigatórias da rodada aberta (ver
+// qualification-status.ts), o mesmo padrão de cálculo sob demanda já usado
+// para Vencendo/Vencido em document-compliance.ts — só o resultado final
+// (aprovado/aprovado com ressalvas/reprovado) é persistido e imutável.
+//
+// `QualificationDecision` (citada em docs/REGRAS_FUNCIONAIS.md como
+// entidade própria) foi fundida aqui, mesmo padrão de simplificação já
+// aplicado a Organization/Supplier (F2) e Document/SupplierRequirement
+// (F3): nesta fatia cada rodada tem no máximo uma decisão final (pareceres
+// múltiplos de Compras e QSMS — RF-062 — ficaram fora do MVP, ver
+// docs/DECISOES_PENDENTES.md).
+model Qualification {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  round      Int // 1 na primeira rodada; requalificação incrementa (RF-065)
+
+  // Snapshot dos requisitos ativos (tipo + obrigatoriedade) no instante em
+  // que a rodada abriu (RF-060: "vinculado ... à versão vigente da matriz").
+  // Não é usado para calcular pendência (isso é sempre sobre o estado atual
+  // dos SupplierRequirement) — é só o registro histórico do que existia
+  // quando a rodada começou.
+  matrixSnapshot Json
+
+  startedAt   DateTime @default(now())
+  startedById String
+  startedBy   User     @relation("QualificationStartedBy", fields: [startedById], references: [id])
+
+  // Decisão final (RF-063). Nula enquanto a rodada está aberta.
+  result         QualificationResult?
+  decidedAt      DateTime?
+  decidedById    String?
+  decidedBy      User?                @relation("QualificationDecidedBy", fields: [decidedById], references: [id])
+  decisionReason String? // motivo obrigatório da decisão (RF-063)
+  // Snapshot dos requisitos/documentos avaliados no momento da decisão
+  // (regra do prompt mestre: "mantém resultado, justificativa, decisor(es),
+  // data e snapshot dos requisitos/documentos avaliados") — histórico
+  // imutável mesmo que o documento seja alterado ou vença depois.
+  decisionSnapshot Json?
+
+  // Ressalva (RF-064) — preenchida somente quando result = APROVADO_COM_RESSALVAS.
+  conditionText        String?
+  conditionResponsible String? // texto livre: quem responde pela condição (interno ou do fornecedor)
+  conditionDeadline    DateTime?
+  conditionEffect      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([supplierId, round])
+  @@index([supplierId])
+  @@map("qualifications")
 }

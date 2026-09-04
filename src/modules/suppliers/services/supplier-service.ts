@@ -6,6 +6,7 @@ import type { Actor } from "@/modules/auth-access/domain/actor";
 import { recordAudit } from "@/modules/audit/services/audit-service";
 import { requestPasswordReset } from "@/modules/auth-access/services/password-reset-service";
 import { applyRequirementMatrix } from "@/modules/requirements/services/apply-matrix-service";
+import { ensureQualificationRound } from "@/modules/qualifications/services/qualification-service";
 
 export class SupplierServiceError extends Error {}
 
@@ -512,6 +513,11 @@ export async function validateRegistration(
   // RF-036, fluxo 6.1 passo 5: a matriz de requisitos é aplicada assim que o
   // cadastro é validado, gerando as pendências documentais do fornecedor.
   await applyRequirementMatrix(actor, supplierId, context);
+
+  // RF-060: a 1ª rodada de qualificação nasce vinculada à matriz recém
+  // aplicada. Idempotente — se o cadastro já tiver rodada (não deveria
+  // acontecer nesta transição, mas evita duplicar em qualquer reentrada).
+  await ensureQualificationRound(actor, supplierId, context);
 }
 
 export async function requestAdjustments(

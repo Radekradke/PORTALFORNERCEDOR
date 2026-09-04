@@ -5,6 +5,7 @@ import {
   CRITICALITY_LABELS,
   COMPLIANCE_STATUS_LABELS,
   DOCUMENT_VERSION_STATUS_LABELS,
+  QUALIFICATION_STATUS_LABELS,
 } from "./nav-config";
 
 const REGISTRATION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
@@ -72,5 +73,21 @@ export function DocumentVersionStatusBadge({ status }: { status: string }) {
     <Badge variant={DOCUMENT_VERSION_VARIANT[status] ?? "default"}>
       {DOCUMENT_VERSION_STATUS_LABELS[status] ?? status}
     </Badge>
+  );
+}
+
+const QUALIFICATION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  NAO_INICIADA: "secondary",
+  DOCUMENTACAO_PENDENTE: "warning",
+  EM_VALIDACAO: "warning",
+  APROVADO: "success",
+  APROVADO_COM_RESSALVAS: "warning",
+  REPROVADO: "destructive",
+  EM_REQUALIFICACAO: "warning",
+};
+
+export function QualificationStatusBadge({ status }: { status: string }) {
+  return (
+    <Badge variant={QUALIFICATION_VARIANT[status] ?? "default"}>{QUALIFICATION_STATUS_LABELS[status] ?? status}</Badge>
   );
 }

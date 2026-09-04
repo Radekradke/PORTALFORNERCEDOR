@@ -10,12 +10,12 @@ de `docs/ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt`).
 
 | ID | Tema | Pergunta | Status na F0/F1 |
 |---|---|---|---|
-| D-01 | Governança | Decisões sensíveis (qualificar, suspender, bloquear, aceitar exceção, reabrir NC) serão individuais ou exigirão aprovação conjunta de Compras e QSMS? | Modelado como permissão individual concedida pelo Admin TI (`UserPermission`). Aprovação conjunta **não** foi implementada — fica para quando a regra for aprovada. |
+| D-01 | Governança | Decisões sensíveis (qualificar, suspender, bloquear, aceitar exceção, reabrir NC) serão individuais ou exigirão aprovação conjunta de Compras e QSMS? | Modelado como permissão individual concedida pelo Admin TI (`UserPermission`). Aprovação conjunta **não** foi implementada — fica para quando a regra for aprovada. A F4 usa exatamente esse mecanismo para `QUALIFICATION_DECIDE`: qualquer usuário de Compras ou QSMS com a permissão concedida decide sozinho. |
 | D-02 | Criticidade | Critérios objetivos de baixa/média/alta/crítica. | Campo existe e é obrigatório no convite (RF-015), mas o critério de escolha continua sendo julgamento de quem cadastra — nenhuma regra automática decide a criticidade. |
 | D-03 | Categorias | Taxonomia inicial de materiais/serviços. | Catálogo (`Category`) implementado e editável por Compras/QSMS na tela "Categorias"; a taxonomia inicial em si (quais categorias existem) é decisão operacional, não travada em código. |
 | D-04 | Documentos | Tipos obrigatórios por categoria e validade. | Mecanismo pronto (tela "Requisitos": tipos de documento + matriz por categoria/criticidade); quais tipos existem e com qual validade em cada categoria é decisão operacional, não travada em código. |
 | D-05 | Aprovadores | Quais usuários específicos de Compras/QSMS recebem cada permissão sensível. | Mecanismo pronto (tela "Usuários e permissões"); a lista de quem recebe o quê é decisão operacional, não travada em código. |
-| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido); NC entra em F6. |
+| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido) nem para qualificação (RF-060/RF-061 não definem prazo-alvo de decisão); NC entra em F6. |
 | D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). |
 | D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | Não iniciado (entra em F5). |
 | D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | Não iniciado (entra em F7). Enquanto não aprovado, qualquer indicador é apenas informativo. |
@@ -122,3 +122,44 @@ serem re-discutidas a cada revisão:
   visível ao fornecedor) e `internalNote` (opcional, nunca retornado nas
   consultas do portal externo) são campos distintos desde o schema — não
   depende de filtrar na camada de apresentação.
+
+## Decisões de implementação registradas na F4 (qualificação)
+
+- **`QualificationDecision` (citada em `docs/REGRAS_FUNCIONAIS.md` como
+  entidade própria) foi fundida em `Qualification`**, mesmo padrão de
+  simplificação já aplicado a Organization/Supplier (F2) e
+  Document/SupplierRequirement (F3): nesta fatia cada rodada
+  (`Qualification`) tem no máximo uma decisão final, então os campos da
+  decisão (resultado, justificativa, decisor, data, ressalva, snapshot)
+  vivem na própria linha da rodada em vez de numa tabela separada.
+- **"Não iniciada", "Documentação pendente" e "Em validação" (seção 5.2)
+  não são persistidas** — só o resultado final (aprovado / aprovado com
+  ressalvas / reprovado) é gravado no banco. Os três primeiros estados são
+  calculados na leitura a partir da ausência de rodada e das pendências
+  obrigatórias atuais (`qualification-status.ts`), o mesmo padrão de
+  cálculo sob demanda já usado para Vencendo/Vencido (F3) — evita inventar
+  um job para manter esses estados sincronizados.
+- **A 1ª rodada de qualificação nasce automaticamente ao validar o
+  cadastro** (logo após a matriz de requisitos ser aplicada), nunca antes
+  — só faz sentido falar em "processo de qualificação" depois que a
+  matriz existe. Requalificação (rodada 2+) é sempre manual e explícita
+  (RF-065): a rodada aberta só existe quando alguém autorizado clica em
+  "Iniciar nova rodada", nunca por vencimento automático de documento
+  (consistente com D-07 — nenhum automatismo alterando estado sem regra
+  aprovada).
+- **RF-064 (ressalva) simplificado**: exigimos apenas condição e prazo
+  como obrigatórios; responsável e efeito operacional ficam opcionais
+  (texto livre, sem vínculo a um usuário do sistema) para não inventar uma
+  taxonomia de "quem pode ser responsável por uma ressalva" sem regra de
+  negócio definida.
+- **RF-037 (exceção formal) continua fora do escopo** (mesma decisão já
+  registrada na F3 para documentos): por isso a única forma de publicar um
+  resultado com requisito obrigatório pendente é "aprovado com ressalvas"
+  ou "reprovado" — nunca "aprovado" normal (RN-010, RF-066, CA-09), sem
+  bypass.
+- **RF-062 (pareceres de Compras e QSMS) ficou fora desta fatia** — mesmo
+  padrão de adiamento deliberado já usado para RF-024/RF-007 (F2) e
+  RF-037/RF-044 (F3). Só existe a decisão final, não pareceres
+  intermediários por perfil.
+- **RF-067 (comprovante imprimível) não foi implementado** (é SHOULD) —
+  mesmo padrão de adiamento de RF-052 (exportação, F3).

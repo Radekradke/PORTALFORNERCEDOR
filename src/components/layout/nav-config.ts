@@ -27,6 +27,7 @@ export const EXTERNAL_NAV: NavItem[] = [
   { href: "/portal-fornecedor", label: "Início", enabled: true },
   { href: "/portal-fornecedor/empresa", label: "Minha empresa", enabled: true },
   { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: true },
+  { href: "/portal-fornecedor/qualificacao", label: "Qualificação", enabled: true },
   { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: false },
   { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: false },
   { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
@@ -114,6 +115,22 @@ export const DOCUMENT_VERSION_STATUS_LABELS: Record<string, string> = {
   EM_ANALISE: "Em análise",
   APROVADO: "Aprovado",
   REJEITADO: "Rejeitado",
+};
+
+export const QUALIFICATION_STATUS_LABELS: Record<string, string> = {
+  NAO_INICIADA: "Não iniciada",
+  DOCUMENTACAO_PENDENTE: "Documentação pendente",
+  EM_VALIDACAO: "Em validação",
+  APROVADO: "Aprovado",
+  APROVADO_COM_RESSALVAS: "Aprovado com ressalvas",
+  REPROVADO: "Reprovado",
+  EM_REQUALIFICACAO: "Em requalificação",
+};
+
+export const QUALIFICATION_RESULT_LABELS: Record<string, string> = {
+  APROVADO: "Aprovado",
+  APROVADO_COM_RESSALVAS: "Aprovado com ressalvas",
+  REPROVADO: "Reprovado",
 };
 
 export const COMPLIANCE_STATUS_LABELS: Record<string, string> = {

@@ -40,7 +40,11 @@ export type Action =
   | "requirement.manage"
   | "document.view"
   | "document.upload"
-  | "document.review";
+  | "document.review"
+  // F4 — qualificação
+  | "qualification.view"
+  | "qualification.manage" // iniciar rodada/requalificação (não é a decisão em si)
+  | "qualification.decide";
 
 export interface ResourceContext {
   /** Fornecedor dono do recurso avaliado — obrigatório para ações "*.own" e para conferir isolamento externo. */
@@ -146,6 +150,27 @@ export function authorize(actor: Actor, action: Action, resource?: ResourceConte
 
     case "document.review":
       return actor.role === "QSMS";
+
+    // Qualificação: consulta é V/V/V como documentos (tabela "Resumo de
+    // permissões" - Qualificação: V). Fornecedor só vê a própria (RN-021).
+    case "qualification.view":
+      if (actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS") {
+        return true;
+      }
+      if (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") {
+        return isOwnSupplier(actor, resource);
+      }
+      return false;
+
+    // Abrir rodada/requalificação é atribuição base de Compras/QSMS (não é
+    // a decisão sensível em si — RF-060, RF-065).
+    case "qualification.manage":
+      return actor.role === "COMPRAS" || actor.role === "QSMS";
+
+    // Decidir qualificação é permissão sensível concedida individualmente
+    // (docs/REGRAS_FUNCIONAIS.md, RF-063, RN-010).
+    case "qualification.decide":
+      return hasPermission(actor, "QUALIFICATION_DECIDE");
 
     default:
       return false;

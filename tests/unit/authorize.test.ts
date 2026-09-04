@@ -176,3 +176,42 @@ describe("authorize() — matriz de acesso F3 (requisitos e documentos)", () => 
     expect(authorize(colaborador, "document.view", { supplierId: "supplier-B" })).toBe(false);
   });
 });
+
+describe("authorize() — matriz de acesso F4 (qualificação)", () => {
+  it("consulta é livre aos internos e isolada por fornecedor aos perfis externos", () => {
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "qualification.view")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "qualification.view")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "qualification.view")).toBe(true);
+
+    const fornecedorA = makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "supplier-A" });
+    expect(authorize(fornecedorA, "qualification.view", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(fornecedorA, "qualification.view", { supplierId: "supplier-B" })).toBe(false);
+    expect(authorize(fornecedorA, "qualification.view")).toBe(false);
+  });
+
+  it("abrir rodada/requalificação (qualification.manage) é atribuição base de Compras/QSMS", () => {
+    expect(authorize(makeActor({ role: "COMPRAS" }), "qualification.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "qualification.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "qualification.manage")).toBe(false);
+    expect(
+      authorize(makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "s1" }), "qualification.manage"),
+    ).toBe(false);
+  });
+
+  it("decidir qualificação exige a permissão sensível QUALIFICATION_DECIDE concedida", () => {
+    const comprasSemPermissao = makeActor({ role: "COMPRAS" });
+    const comprasComPermissao = makeActor({ role: "COMPRAS", sensitivePermissions: ["QUALIFICATION_DECIDE"] });
+    const qsmsComPermissao = makeActor({ role: "QSMS", sensitivePermissions: ["QUALIFICATION_DECIDE"] });
+
+    expect(authorize(comprasSemPermissao, "qualification.decide")).toBe(false);
+    expect(authorize(comprasComPermissao, "qualification.decide")).toBe(true);
+    expect(authorize(qsmsComPermissao, "qualification.decide")).toBe(true);
+
+    // Admin TI nunca decide negócio, mesmo com a permissão concedida por engano.
+    const adminComPermissaoIndevida = makeActor({
+      role: "ADMIN_TI",
+      sensitivePermissions: ["QUALIFICATION_DECIDE"],
+    });
+    expect(authorize(adminComPermissaoIndevida, "qualification.decide")).toBe(false);
+  });
+});

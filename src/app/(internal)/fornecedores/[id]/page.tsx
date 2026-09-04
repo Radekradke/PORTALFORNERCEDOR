@@ -5,10 +5,17 @@ import { getSupplierById, listAssignableResponsibleUsers } from "@/modules/suppl
 import { listCategories } from "@/modules/categories/services/category-service";
 import { listAuditLogs } from "@/modules/audit/services/audit-query-service";
 import { listSupplierRequirements } from "@/modules/documents/services/document-service";
+import { getQualificationOverview } from "@/modules/qualifications/services/qualification-service";
 import { Forbidden } from "@/components/layout/forbidden";
 import { DocumentsSection } from "./documents-section";
+import { QualificationSection } from "./qualification-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RegistrationStatusBadge, OperationalStatusBadge, CriticalityBadge } from "@/components/layout/status-badges";
+import {
+  RegistrationStatusBadge,
+  OperationalStatusBadge,
+  CriticalityBadge,
+  QualificationStatusBadge,
+} from "@/components/layout/status-badges";
 import { CONTACT_TYPE_LABELS, SUPPLY_TYPE_LABELS } from "@/components/layout/nav-config";
 import { formatCnpj } from "@/lib/cnpj";
 import { formatDateTime } from "@/lib/time";
@@ -42,12 +49,15 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
   const canBlock = authorize(actor, "supplier.block");
   const canUnblock = authorize(actor, "supplier.unblock");
   const canReapplyMatrix = authorize(actor, "requirement.manage");
+  const canDecideQualification = authorize(actor, "qualification.decide");
+  const canManageQualification = authorize(actor, "qualification.manage");
 
-  const [categories, assignableUsers, history, requirements] = await Promise.all([
+  const [categories, assignableUsers, history, requirements, qualification] = await Promise.all([
     listCategories(actor),
     canGovern ? listAssignableResponsibleUsers(actor) : Promise.resolve([]),
     listAuditLogs(actor, { entityType: "Supplier", entityId: supplier.id, pageSize: 15 }),
     listSupplierRequirements(actor, supplier.id),
+    getQualificationOverview(actor, supplier.id),
   ]);
 
   const fields = { supplierId: supplier.id };
@@ -63,6 +73,7 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
           <RegistrationStatusBadge status={supplier.registrationStatus} />
           <OperationalStatusBadge status={supplier.operationalStatus} />
           <CriticalityBadge criticality={supplier.criticality} />
+          <QualificationStatusBadge status={qualification.status} />
         </div>
       </div>
 
@@ -264,6 +275,25 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
         </CardHeader>
         <CardContent>
           <DocumentsSection supplierId={supplier.id} requirements={requirements} canReapply={canReapplyMatrix} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Qualificação</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QualificationSection
+            supplierId={supplier.id}
+            status={qualification.status}
+            rounds={qualification.rounds}
+            latestRound={qualification.latestRound}
+            canDecideNow={qualification.canDecideNow}
+            canApproveNormally={qualification.canApproveNormally}
+            pendingObligatory={qualification.pendingObligatory}
+            canDecide={canDecideQualification}
+            canManage={canManageQualification}
+          />
         </CardContent>
       </Card>
 

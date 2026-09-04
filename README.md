@@ -11,7 +11,7 @@ também `CLAUDE.md` antes de alterar domínio, permissões, estados ou fluxos.
 
 ## Status desta entrega
 
-**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos).**
+**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação).**
 
 F0/F1 incluem: scaffold Next.js/TypeScript/Tailwind, Docker Compose
 (PostgreSQL + MinIO + Mailpit), autenticação local (Argon2id), sessão em
@@ -36,9 +36,21 @@ análise para QSMS (aprovar/rejeitar com motivo), cálculo de vencimento/
 vencendo sob demanda, e download privado por URL temporária com auditoria
 de acesso.
 
-Qualificação, fiscalização, NC e dashboard de risco **ainda não existem** —
-entram nas fatias F4 a F7 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o
-menu do portal externo já mostram a arquitetura de informação completa da
+F4 adiciona: processo de qualificação por fornecedor (`Qualification`,
+RF-060 a RF-067) com rodadas — a 1ª nasce automaticamente ao validar o
+cadastro, junto com a matriz de requisitos; decisão final (aprovado,
+aprovado com ressalvas ou reprovado) exige a permissão sensível
+`QUALIFICATION_DECIDE` (já concedida a Compras e QSMS no seed), justificativa
+obrigatória e snapshot dos requisitos/documentos avaliados no momento da
+decisão; aprovação normal é bloqueada no servidor enquanto houver requisito
+obrigatório não atendido (RN-010, CA-09) — só resta aprovar com ressalva
+(condição + prazo obrigatórios) ou reprovar; requalificação (nova rodada)
+é sempre manual e nunca apaga a rodada anterior (RF-065); o resultado é
+publicado no portal do fornecedor.
+
+Fiscalização, NC e dashboard de risco **ainda não existem** — entram nas
+fatias F5 a F7 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o menu do
+portal externo já mostram a arquitetura de informação completa da
 especificação, com os itens ainda não implementados marcados como "em breve"
 (não são links falsos).
 
@@ -100,7 +112,7 @@ Acesse `http://localhost:3000`.
 |---|---|---|---|---|
 | Alfa Materiais | Em preenchimento | Regular | `admin@alfa-materiais.local` | `Alfa#2026Local` |
 | Beta Serviços | Enviado para análise | Regular | `admin@beta-servicos.local` | `Beta#2026Local` |
-| Gama Industrial | Cadastro validado (3 requisitos pendentes) | Bloqueado | `admin@gama-industrial.local` | `Gama#2026Local` |
+| Gama Industrial | Cadastro validado (3 requisitos pendentes, rodada 1 de qualificação aberta) | Bloqueado | `admin@gama-industrial.local` | `Gama#2026Local` |
 
 **Requisitos semeados**: tipos de documento `ART` (validade fixa, 365 dias,
 exige data de emissão, só PDF), `PPRA-PGR` (validade informada no envio) e
@@ -119,7 +131,7 @@ exige data de emissão, só PDF), `PPRA-PGR` (validade informada no envio) e
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # TypeScript estrito
-npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo)
+npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo, estado de qualificação)
 npm run build       # build de produção
 
 # Testes de ponta a ponta (requer app rodando em http://localhost:3000,
@@ -140,7 +152,7 @@ src/
   app/                    # rotas Next.js (App Router)
     (auth)/               # login, esqueci-senha, redefinir-senha
     (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, usuários, auditoria
-    portal-fornecedor/    # portal externo (início, minha empresa, documentos, histórico)
+    portal-fornecedor/    # portal externo (início, minha empresa, documentos, qualificação, histórico)
     api/                  # health check, download privado de documento
   modules/                # domínio/serviços por módulo coerente
     auth-access/          # login, sessão, recuperação de senha, authorize()
@@ -149,6 +161,7 @@ src/
     categories/           # catálogo de categorias
     requirements/         # tipos de documento, matriz e aplicação (RF-030 a RF-038)
     documents/             # upload, versionamento, análise e conformidade (RF-040 a RF-052)
+    qualifications/         # rodadas, decisão e bloqueio de aprovação normal (RF-060 a RF-067)
     audit/                # trilha de auditoria (interna e visível ao fornecedor)
   components/
     ui/                   # componentes shadcn/ui (button, input, table...)
@@ -184,7 +197,8 @@ docs/
   do recurso (`resource.supplierId === actor.supplierId`) para isolamento
   externo (RN-021, CA-03).
 - Toda mutação crítica (usuários, permissões, fornecedores, requisitos,
-  documentos, situação operacional, login, logout) grava `AuditLog` na
+  documentos, qualificação, situação operacional, login, logout) grava
+  `AuditLog` na
   mesma transação; eventos relevantes ao fornecedor ficam marcados
   `visibility: "externa"` e só esses aparecem no histórico do portal
   externo — nunca dados de outro fornecedor nem anotações internas.
@@ -207,8 +221,13 @@ docs/
 
 ## O que ainda não está pronto (limitações honestas desta fatia)
 
-- Não há qualificação, fiscalização, NC ou dashboard de risco — a interface
-  mostra esses itens do menu como "em breve".
+- Não há fiscalização, NC ou dashboard de risco — a interface mostra esses
+  itens do menu como "em breve".
+- Qualificação (F4) não tem pareceres separados de Compras e QSMS (RF-062,
+  SHOULD) nem comprovante imprimível (RF-067, SHOULD) — só a decisão final.
+  Exceção formal de requisito (RF-037, já adiada na F3) continua sem
+  implementação, então uma pendência obrigatória só pode virar "aprovado com
+  ressalvas" ou "reprovado", nunca "aprovado" normal.
 - Não há job agendado de vencimento: "vencendo"/"vencido" são calculados na
   leitura a partir da validade e das janelas de alerta, sempre corretos,
   mas nenhum e-mail proativo é disparado quando um documento entra na
@@ -235,10 +254,10 @@ docs/
 
 ## Próxima fatia recomendada
 
-F4 — Qualificação: processo de qualificação vinculado ao fornecedor e à
-versão vigente da matriz (`Qualification`, `QualificationDecision`),
-pareceres de Compras/QSMS, decisão final (aprovado, aprovado com ressalvas,
-reprovado) usando a permissão sensível `QUALIFICATION_DECIDE` já concedida
-na F1, snapshot dos requisitos avaliados e bloqueio de aprovação normal
-enquanto houver requisito obrigatório não atendido (RF-051, já calculado
-pelo módulo `documents` desta fatia).
+F5 — Fiscalização: modelos de checklist (`InspectionTemplate`,
+`InspectionTemplateItem`), programação e execução de fiscalização
+(`Inspection`, `InspectionAnswer`) com fluxo mobile-first (alvos de toque,
+progresso persistido, retomada), evidências com foto/documento
+(`Evidence`, reaproveitando `FileObject`/`StorageProvider` já existentes) e
+conclusão com relatório rastreável. Um item "não conforme" já deve nascer
+preparado para abrir uma não conformidade vinculada (F6).

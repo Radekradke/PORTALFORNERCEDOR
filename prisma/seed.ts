@@ -420,6 +420,32 @@ async function main() {
       });
     }
     console.log("  matriz aplicada ao fornecedor Gama Industrial");
+
+    // ---------------------------------------------------------------------
+    // F4 — Rodada de qualificação de demonstração
+    // ---------------------------------------------------------------------
+    // Mesmo padrão dos blocos acima: o serviço ensureQualificationRound é
+    // acionado automaticamente pela tela quando o cadastro é validado pela
+    // interface; o seed grava direto no banco para reproduzir o resultado
+    // esperado sem passar pela camada de serviço. Gama fica com uma rodada
+    // aberta (sem versão de documento enviada ainda -> "Documentação
+    // pendente") — cenário útil para o fluxo manual de decisão bloqueada
+    // por RN-010.
+    const gamaActiveRequirements = await prisma.supplierRequirement.findMany({
+      where: { supplierId: gama.id, active: true },
+      select: { id: true, requirementTypeId: true, obligation: true },
+    });
+    await prisma.qualification.upsert({
+      where: { supplierId_round: { supplierId: gama.id, round: 1 } },
+      update: {},
+      create: {
+        supplierId: gama.id,
+        round: 1,
+        startedById: compras.id,
+        matrixSnapshot: gamaActiveRequirements,
+      },
+    });
+    console.log("  rodada de qualificação (1) aberta para Gama Industrial");
   }
 
   console.log("Seed: concluído.");
