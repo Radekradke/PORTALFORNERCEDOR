@@ -16,9 +16,12 @@ export function middleware(request: NextRequest) {
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
-  if (pathname === "/") {
+  // "/" não sabe, no Edge, se o ator é interno ou externo (isso exige banco).
+  // Sem cookie -> login. Com cookie -> deixa passar; src/app/page.tsx decide
+  // o destino certo (dashboard ou portal-fornecedor) no servidor.
+  if (pathname === "/" && !hasSessionCookie) {
     const url = request.nextUrl.clone();
-    url.pathname = hasSessionCookie ? "/dashboard" : "/login";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
@@ -31,7 +34,7 @@ export function middleware(request: NextRequest) {
 
   if (isPublicPath && hasSessionCookie) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
   }

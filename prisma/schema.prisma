@@ -1,10 +1,9 @@
 // Portal de Fiscalização e Gestão de Fornecedores - Lifting
-// Schema da fatia F0/F1 (fundação + acesso e autorização).
+// Schema das fatias F0/F1 (fundação + acesso e autorização) e F2 (fornecedores).
 // Fonte de verdade das regras: docs/REGRAS_FUNCIONAIS.md
 //
-// Este schema modela SOMENTE o necessário para autenticação, RBAC,
-// permissões sensíveis e auditoria. Entidades de fornecedor, documentos,
-// fiscalização e NC entram nas fatias F2+ (ver docs/DECISOES_PENDENTES.md).
+// Requisitos, documentos, qualificação, fiscalização e NC entram nas fatias
+// F3+ (ver docs/DECISOES_PENDENTES.md).
 
 generator client {
   provider = "prisma-client-js"
@@ -15,23 +14,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ---------------------------------------------------------------------------
-// Organização (fornecedor) - modelo mínimo para suportar o isolamento externo
-// desde já (RF-006). O cadastro completo (contatos, categorias, criticidade)
-// é implementado na fatia F2, conforme modelar-dominio-fornecedores.
-// ---------------------------------------------------------------------------
-model Organization {
-  id        String   @id @default(cuid())
-  cnpj      String   @unique // somente dígitos, normalizado (RN-001)
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users     User[]
-  auditLogs AuditLog[]
-
-  @@map("organizations")
-}
+// =============================================================================
+// F1 — Acesso e autorização
+// =============================================================================
 
 enum UserRole {
   ADMIN_TI
@@ -70,8 +55,8 @@ model User {
   // Isolamento externo: obrigatório para perfis FORNECEDOR_*, sempre nulo
   // para perfis internos (ADMIN_TI/COMPRAS/QSMS). Validado em serviço, não
   // apenas no schema, porque Prisma não expressa constraint condicional.
-  organizationId    String?
-  organization      Organization? @relation(fields: [organizationId], references: [id])
+  supplierId        String?
+  supplier          Supplier?  @relation("SupplierUsers", fields: [supplierId], references: [id])
 
   failedLoginCount  Int        @default(0)
   lockedUntil       DateTime?
@@ -84,9 +69,10 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   grantedPermissions    UserPermission[]        @relation("PermissionHolder")
   permissionsGrantedBy  UserPermission[]        @relation("PermissionGrantor")
-  auditLogsAsActor      AuditLog[]               @relation("AuditActor")
+  auditLogsAsActor      AuditLog[]              @relation("AuditActor")
+  supplierResponsibleOf SupplierResponsible[]   @relation("ResponsibleUser")
 
-  @@index([organizationId])
+  @@index([supplierId])
   @@index([role])
   @@map("users")
 }
@@ -155,12 +141,12 @@ model AuditLog {
   actor          User?    @relation("AuditActor", fields: [actorId], references: [id])
   actorLabel     String? // preenchido quando o ator não é um usuário autenticado (ex.: "sistema", "anônimo")
 
-  action         String // verbo padronizado, ex.: "auth.login.success", "user.permission.grant"
-  entityType     String // ex.: "User", "Session"
+  action         String // verbo padronizado, ex.: "auth.login.success", "supplier.registration.validate"
+  entityType     String // ex.: "User", "Supplier"
   entityId       String?
 
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  supplierId     String?
+  supplier       Supplier? @relation("SupplierAuditLogs", fields: [supplierId], references: [id])
 
   reason         String? // motivo/justificativa quando aplicável a decisões sensíveis
 
@@ -168,7 +154,9 @@ model AuditLog {
   after          Json? // estado posterior minimizado
 
   context        Json? // { source: "web"|"api", ip, userAgent, correlationId }
-  visibility     String   @default("interna") // interna | externa | restrita
+  // interna: só equipe Lifting. externa: aparece na linha do tempo do portal do
+  // fornecedor (RF-136, RN-021). restrita: nunca sai da auditoria interna completa.
+  visibility     String   @default("interna")
 
   createdAt      DateTime @default(now())
 
@@ -176,5 +164,197 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])
+  @@index([supplierId, visibility])
   @@map("audit_logs")
+}
+
+// =============================================================================
+// F2 — Fornecedores
+// =============================================================================
+
+enum SupplyType {
+  MATERIAL
+  SERVICO
+  AMBOS
+}
+
+// RF-015. Critérios objetivos de cada nível são decisão de negócio pendente
+// (D-02, docs/DECISOES_PENDENTES.md) — o valor em si é livre até lá.
+enum Criticality {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+// Estado cadastral (seção 5.1 da especificação). CONVITE_ENVIADO é criado
+// junto com o Supplier por Compras — não existe um estado "pré-cadastro"
+// separado: o próprio registro criado por Compras já É o pré-cadastro.
+enum SupplierRegistrationStatus {
+  CONVITE_ENVIADO
+  EM_PREENCHIMENTO
+  ENVIADO_PARA_ANALISE
+  EM_ANALISE
+  AJUSTES_SOLICITADOS
+  CADASTRO_VALIDADO
+  REJEITADO
+  INATIVO
+}
+
+// Situação operacional (seção 5.3). Nesta fatia só é alterada manualmente
+// (suspender/bloquear/desbloquear); o cômputo automático a partir de
+// documentos/NC entra em fatias futuras (F3+), mantendo REGULAR/ATENCAO
+// como estados de leitura por enquanto.
+enum SupplierOperationalStatus {
+  REGULAR
+  ATENCAO
+  IRREGULAR
+  SUSPENSO
+  BLOQUEADO
+}
+
+enum SupplierResponsibleType {
+  COMPRADOR
+  GESTOR_CONTRATO
+  FISCAL
+}
+
+enum ContactType {
+  COMERCIAL
+  FINANCEIRO
+  TECNICO
+  QSMS
+  OUTRO
+}
+
+model Supplier {
+  id     String @id @default(cuid())
+  cnpj   String @unique // somente dígitos, normalizado (RN-001)
+
+  // Identificação (RF-010)
+  legalName                String // razão social
+  tradeName                String? // nome fantasia
+  stateRegistration        String? // inscrição estadual
+  municipalRegistration    String? // inscrição municipal
+  website                  String?
+  companySize              String? // porte (texto livre — sem taxonomia definitiva, ver D-02/D-03)
+  registeredStatusInformed String? // situação cadastral informada manualmente (sem consulta automática, fora do escopo v0.1)
+
+  // Endereço (RF-010)
+  addressZip        String?
+  addressStreet     String?
+  addressNumber     String?
+  addressComplement String?
+  addressDistrict   String?
+  addressCity       String?
+  addressState      String? // UF
+  addressCountry    String  @default("BR")
+
+  // Fornecimento (RF-013)
+  supplyType SupplyType?
+
+  // Governança (RF-014, RF-015, RN-003)
+  criticality Criticality?
+
+  // Estados (seção 5)
+  registrationStatus SupplierRegistrationStatus @default(CONVITE_ENVIADO)
+  operationalStatus  SupplierOperationalStatus  @default(REGULAR)
+  operationalReason  String? // motivo da última mudança de situação operacional (suspensão/bloqueio)
+
+  // Convite (reaproveita PasswordResetToken do usuário FORNECEDOR_ADMIN criado
+  // junto — não há token próprio do Supplier). Ver suppliers/services.
+  inviteSentAt      DateTime?
+  inviteCancelledAt DateTime?
+
+  submittedAt DateTime? // primeiro envio para análise
+  validatedAt DateTime? // quando o cadastro foi validado
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]                @relation("SupplierUsers")
+  auditLogs     AuditLog[]            @relation("SupplierAuditLogs")
+  contacts      SupplierContact[]
+  categories    SupplierCategory[]
+  responsibles  SupplierResponsible[]
+
+  @@index([registrationStatus])
+  @@index([operationalStatus])
+  @@index([criticality])
+  @@map("suppliers")
+}
+
+model SupplierContact {
+  id          String      @id @default(cuid())
+  supplierId  String
+  supplier    Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  name        String
+  role        String? // cargo
+  email       String?
+  phone       String?
+  contactType ContactType @default(OUTRO)
+  isPrimary   Boolean     @default(false)
+
+  // Exclusão lógica — não apagar histórico de negócio (invariante geral).
+  active      Boolean     @default(true)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_contacts")
+}
+
+// Catálogo de categorias (RF-030). A matriz de requisitos por
+// categoria/criticidade (RequirementRule) entra na fatia F3.
+model Category {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  active      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplierLinks SupplierCategory[]
+
+  @@map("categories")
+}
+
+model SupplierCategory {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([supplierId, categoryId])
+  @@index([categoryId])
+  @@map("supplier_categories")
+}
+
+// Responsáveis internos (RF-014): comprador, gestor de contrato e fiscal.
+// Mais de um usuário pode ocupar o mesmo papel para o mesmo fornecedor.
+model SupplierResponsible {
+  id         String                  @id @default(cuid())
+  supplierId String
+  supplier   Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                    @relation("ResponsibleUser", fields: [userId], references: [id])
+  type       SupplierResponsibleType
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([supplierId, userId, type])
+  @@index([supplierId])
+  @@index([userId])
+  @@map("supplier_responsibles")
 }

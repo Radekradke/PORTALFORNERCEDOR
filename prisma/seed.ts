@@ -1,9 +1,10 @@
 /**
- * Seed idempotente da fatia F0/F1.
+ * Seed idempotente das fatias F0/F1 (acesso) e F2 (fornecedores).
  *
- * IMPORTANTE: todos os usuários abaixo são FICTÍCIOS, criados apenas para
- * desenvolvimento/homologação local (domínio *.local, senhas de exemplo).
- * Nunca reutilize estas credenciais fora do ambiente local.
+ * IMPORTANTE: todos os usuários e fornecedores abaixo são FICTÍCIOS, criados
+ * apenas para desenvolvimento/homologação local (domínio *.local, CNPJs
+ * matematicamente válidos mas fictícios, senhas de exemplo). Nunca reutilize
+ * estas credenciais ou CNPJs fora do ambiente local.
  *
  * Executa com: npm run prisma:seed
  */
@@ -97,15 +98,23 @@ async function main() {
     console.log(`  usuário ok: ${seedUser.email} (${seedUser.role}/${seedUser.status})`);
   }
 
-  // Permissões sensíveis de exemplo: Compras decide qualificação; QSMS decide
-  // qualificação e reabre NC (docs/REGRAS_FUNCIONAIS.md).
+  // Permissões sensíveis de exemplo (docs/REGRAS_FUNCIONAIS.md): Compras
+  // decide qualificação e desbloqueia; QSMS decide qualificação, bloqueia e
+  // reabre NC. Cada permissão fica com um titular diferente de propósito,
+  // para exercitar authorize() com granularidade real nos testes manuais.
   const admin = byEmail.get("admin.ti@lifting.local")!;
   const compras = byEmail.get("compras@lifting.local")!;
   const qsms = byEmail.get("qsms@lifting.local")!;
 
-  const grants: Array<{ userId: string; permission: "QUALIFICATION_DECIDE" | "SUPPLIER_SUSPEND" | "NC_REOPEN" }> = [
+  const grants: Array<{
+    userId: string;
+    permission: "QUALIFICATION_DECIDE" | "SUPPLIER_SUSPEND" | "SUPPLIER_BLOCK" | "SUPPLIER_UNBLOCK" | "NC_REOPEN";
+  }> = [
     { userId: compras.id, permission: "QUALIFICATION_DECIDE" },
+    { userId: compras.id, permission: "SUPPLIER_SUSPEND" },
+    { userId: compras.id, permission: "SUPPLIER_UNBLOCK" },
     { userId: qsms.id, permission: "QUALIFICATION_DECIDE" },
+    { userId: qsms.id, permission: "SUPPLIER_BLOCK" },
     { userId: qsms.id, permission: "NC_REOPEN" },
   ];
 
@@ -119,6 +128,182 @@ async function main() {
       });
       console.log(`  permissão concedida: ${grant.permission} -> ${grant.userId}`);
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // F2 — Categorias e fornecedores fictícios
+  // ---------------------------------------------------------------------
+
+  const categoriesData = [
+    { code: "ELET", name: "Materiais elétricos", description: "Cabos, quadros, componentes elétricos." },
+    { code: "SERV-MANUT", name: "Serviços de manutenção", description: "Manutenção predial e industrial." },
+  ];
+
+  const categoryIds = new Map<string, string>();
+  for (const c of categoriesData) {
+    const category = await prisma.category.upsert({
+      where: { code: c.code },
+      update: { name: c.name, description: c.description },
+      create: c,
+    });
+    categoryIds.set(c.code, category.id);
+    console.log(`  categoria ok: ${c.code}`);
+  }
+
+  interface SeedSupplier {
+    cnpj: string;
+    legalName: string;
+    tradeName?: string;
+    criticality: "BAIXA" | "MEDIA" | "ALTA" | "CRITICA";
+    categoryCodes: string[];
+    registrationStatus:
+      | "EM_PREENCHIMENTO"
+      | "ENVIADO_PARA_ANALISE"
+      | "CADASTRO_VALIDADO";
+    operationalStatus?: "REGULAR" | "BLOQUEADO";
+    address?: {
+      zip: string;
+      street: string;
+      number: string;
+      district: string;
+      city: string;
+      state: string;
+    };
+    adminEmail: string;
+    adminName: string;
+    adminPassword: string;
+  }
+
+  const suppliersData: SeedSupplier[] = [
+    {
+      cnpj: "11000001000152",
+      legalName: "Fornecedor Alfa Materiais Ltda (ficticio)",
+      tradeName: "Alfa Materiais",
+      criticality: "MEDIA",
+      categoryCodes: ["ELET"],
+      registrationStatus: "EM_PREENCHIMENTO",
+      adminEmail: "admin@alfa-materiais.local",
+      adminName: "Fábio Ficticio (Alfa)",
+      adminPassword: "Alfa#2026Local",
+    },
+    {
+      cnpj: "12000002000160",
+      legalName: "Fornecedor Beta Serviços Ltda (ficticio)",
+      tradeName: "Beta Serviços",
+      criticality: "ALTA",
+      categoryCodes: ["SERV-MANUT"],
+      registrationStatus: "ENVIADO_PARA_ANALISE",
+      address: {
+        zip: "01000-000",
+        street: "Rua Ficticia",
+        number: "100",
+        district: "Centro",
+        city: "São Paulo",
+        state: "SP",
+      },
+      adminEmail: "admin@beta-servicos.local",
+      adminName: "Gisele Ficticia (Beta)",
+      adminPassword: "Beta#2026Local",
+    },
+    {
+      cnpj: "13000003000177",
+      legalName: "Fornecedor Gama Industrial Ltda (ficticio)",
+      tradeName: "Gama Industrial",
+      criticality: "CRITICA",
+      categoryCodes: ["ELET", "SERV-MANUT"],
+      registrationStatus: "CADASTRO_VALIDADO",
+      operationalStatus: "BLOQUEADO",
+      address: {
+        zip: "02000-000",
+        street: "Avenida Ficticia",
+        number: "500",
+        district: "Industrial",
+        city: "Guarulhos",
+        state: "SP",
+      },
+      adminEmail: "admin@gama-industrial.local",
+      adminName: "Hugo Ficticio (Gama)",
+      adminPassword: "Gama#2026Local",
+    },
+  ];
+
+  for (const s of suppliersData) {
+    const existing = await prisma.supplier.findUnique({ where: { cnpj: s.cnpj } });
+    const passwordHash = await hashPassword(s.adminPassword);
+
+    const supplier = await prisma.supplier.upsert({
+      where: { cnpj: s.cnpj },
+      update: {
+        legalName: s.legalName,
+        tradeName: s.tradeName,
+        criticality: s.criticality,
+        registrationStatus: s.registrationStatus,
+        operationalStatus: s.operationalStatus ?? "REGULAR",
+        operationalReason: s.operationalStatus === "BLOQUEADO" ? "Pendência crítica de segurança (exemplo fictício de seed)." : null,
+        addressZip: s.address?.zip,
+        addressStreet: s.address?.street,
+        addressNumber: s.address?.number,
+        addressDistrict: s.address?.district,
+        addressCity: s.address?.city,
+        addressState: s.address?.state,
+        submittedAt: s.registrationStatus !== "EM_PREENCHIMENTO" ? new Date() : null,
+        validatedAt: s.registrationStatus === "CADASTRO_VALIDADO" ? new Date() : null,
+      },
+      create: {
+        cnpj: s.cnpj,
+        legalName: s.legalName,
+        tradeName: s.tradeName,
+        criticality: s.criticality,
+        registrationStatus: s.registrationStatus,
+        operationalStatus: s.operationalStatus ?? "REGULAR",
+        operationalReason: s.operationalStatus === "BLOQUEADO" ? "Pendência crítica de segurança (exemplo fictício de seed)." : null,
+        inviteSentAt: new Date(),
+        addressZip: s.address?.zip,
+        addressStreet: s.address?.street,
+        addressNumber: s.address?.number,
+        addressDistrict: s.address?.district,
+        addressCity: s.address?.city,
+        addressState: s.address?.state,
+        submittedAt: s.registrationStatus !== "EM_PREENCHIMENTO" ? new Date() : null,
+        validatedAt: s.registrationStatus === "CADASTRO_VALIDADO" ? new Date() : null,
+      },
+    });
+
+    for (const code of s.categoryCodes) {
+      const categoryId = categoryIds.get(code)!;
+      await prisma.supplierCategory.upsert({
+        where: { supplierId_categoryId: { supplierId: supplier.id, categoryId } },
+        update: {},
+        create: { supplierId: supplier.id, categoryId },
+      });
+    }
+
+    if (!existing) {
+      await prisma.supplierContact.create({
+        data: {
+          supplierId: supplier.id,
+          name: s.adminName,
+          email: s.adminEmail,
+          contactType: "COMERCIAL",
+          isPrimary: true,
+        },
+      });
+    }
+
+    await prisma.user.upsert({
+      where: { email: s.adminEmail },
+      update: { name: s.adminName, role: "FORNECEDOR_ADMIN", status: "ACTIVE", supplierId: supplier.id, passwordHash },
+      create: {
+        name: s.adminName,
+        email: s.adminEmail,
+        role: "FORNECEDOR_ADMIN",
+        status: "ACTIVE",
+        supplierId: supplier.id,
+        passwordHash,
+      },
+    });
+
+    console.log(`  fornecedor ok: ${s.legalName} (${s.registrationStatus})`);
   }
 
   console.log("Seed: concluído.");

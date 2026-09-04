@@ -5,6 +5,7 @@ import type { Actor } from "@/modules/auth-access/domain/actor";
 export interface AuditLogFilters {
   action?: string;
   entityType?: string;
+  entityId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -19,6 +20,7 @@ export async function listAuditLogs(actor: Actor, filters: AuditLogFilters = {})
   const where = {
     ...(filters.action ? { action: { contains: filters.action, mode: "insensitive" as const } } : {}),
     ...(filters.entityType ? { entityType: filters.entityType } : {}),
+    ...(filters.entityId ? { entityId: filters.entityId } : {}),
   };
 
   const [total, items] = await Promise.all([
@@ -33,4 +35,21 @@ export async function listAuditLogs(actor: Actor, filters: AuditLogFilters = {})
   ]);
 
   return { items, total, page, pageSize };
+}
+
+/**
+ * Linha do tempo visível ao próprio fornecedor (RF-136, EXT-08). Nunca passa
+ * por `audit.view` (ação interna): usa isolamento por `supplierId` e só
+ * devolve eventos marcados como `externa` (RN-021 — nada interno vaza).
+ */
+export async function listSupplierExternalHistory(actor: Actor, supplierId: string) {
+  if (!actor.supplierId || actor.supplierId !== supplierId) {
+    throw new Error("Fornecedor não autorizado a ver este histórico.");
+  }
+
+  return prisma.auditLog.findMany({
+    where: { supplierId, entityType: "Supplier", visibility: "externa" },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
 }

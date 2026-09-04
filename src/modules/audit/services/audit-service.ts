@@ -13,7 +13,7 @@ export interface RecordAuditInput {
   action: string;
   entityType: string;
   entityId?: string | null;
-  organizationId?: string | null;
+  supplierId?: string | null;
   reason?: string | null;
   before?: Prisma.InputJsonValue | null;
   after?: Prisma.InputJsonValue | null;
@@ -37,7 +37,7 @@ export async function recordAudit(
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId ?? null,
-      organizationId: input.organizationId ?? null,
+      supplierId: input.supplierId ?? null,
       reason: input.reason ?? null,
       before: input.before ?? undefined,
       after: input.after ?? undefined,

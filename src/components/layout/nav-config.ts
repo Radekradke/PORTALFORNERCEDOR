@@ -11,7 +11,8 @@ export interface NavItem {
 
 export const INTERNAL_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", enabled: true },
-  { href: "/fornecedores", label: "Fornecedores", enabled: false },
+  { href: "/fornecedores", label: "Fornecedores", enabled: true },
+  { href: "/categorias", label: "Categorias", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
   { href: "/documentos", label: "Documentos", enabled: false },
   { href: "/fiscalizacoes", label: "Fiscalizações", enabled: false },
   { href: "/nao-conformidades", label: "Não conformidades", enabled: false },
@@ -19,6 +20,17 @@ export const INTERNAL_NAV: NavItem[] = [
   { href: "/notificacoes", label: "Notificações", enabled: false },
   { href: "/usuarios", label: "Usuários e permissões", roles: ["ADMIN_TI"], enabled: true },
   { href: "/auditoria", label: "Auditoria", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
+];
+
+export const EXTERNAL_NAV: NavItem[] = [
+  { href: "/portal-fornecedor", label: "Início", enabled: true },
+  { href: "/portal-fornecedor/empresa", label: "Minha empresa", enabled: true },
+  { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: false },
+  { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: false },
+  { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: false },
+  { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
+  { href: "/portal-fornecedor/usuarios", label: "Usuários da empresa", roles: ["FORNECEDOR_ADMIN"], enabled: false },
+  { href: "/portal-fornecedor/historico", label: "Histórico", enabled: true },
 ];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -36,4 +48,50 @@ export const PERMISSION_LABELS: Record<string, string> = {
   SUPPLIER_UNBLOCK: "Desbloquear fornecedor",
   EXCEPTION_ACCEPT: "Aceitar exceção",
   NC_REOPEN: "Reabrir não conformidade",
+};
+
+export const REGISTRATION_STATUS_LABELS: Record<string, string> = {
+  CONVITE_ENVIADO: "Convite enviado",
+  EM_PREENCHIMENTO: "Em preenchimento",
+  ENVIADO_PARA_ANALISE: "Enviado para análise",
+  EM_ANALISE: "Em análise",
+  AJUSTES_SOLICITADOS: "Ajustes solicitados",
+  CADASTRO_VALIDADO: "Cadastro validado",
+  REJEITADO: "Rejeitado",
+  INATIVO: "Inativo",
+};
+
+export const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
+  REGULAR: "Regular",
+  ATENCAO: "Atenção",
+  IRREGULAR: "Irregular",
+  SUSPENSO: "Suspenso",
+  BLOQUEADO: "Bloqueado",
+};
+
+export const CRITICALITY_LABELS: Record<string, string> = {
+  BAIXA: "Baixa",
+  MEDIA: "Média",
+  ALTA: "Alta",
+  CRITICA: "Crítica",
+};
+
+export const CONTACT_TYPE_LABELS: Record<string, string> = {
+  COMERCIAL: "Comercial",
+  FINANCEIRO: "Financeiro",
+  TECNICO: "Técnico",
+  QSMS: "QSMS",
+  OUTRO: "Outro",
+};
+
+export const RESPONSIBLE_TYPE_LABELS: Record<string, string> = {
+  COMPRADOR: "Comprador",
+  GESTOR_CONTRATO: "Gestor do contrato",
+  FISCAL: "Fiscal",
+};
+
+export const SUPPLY_TYPE_LABELS: Record<string, string> = {
+  MATERIAL: "Material",
+  SERVICO: "Serviço",
+  AMBOS: "Material e serviço",
 };

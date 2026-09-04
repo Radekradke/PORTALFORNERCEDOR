@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentActor } from "@/modules/auth-access/services/current-actor";
-import { isInternal } from "@/modules/auth-access/domain/actor";
+import { isInternal, isExternal } from "@/modules/auth-access/domain/actor";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -9,9 +9,9 @@ export default async function InternalLayout({ children }: { children: React.Rea
   const actor = await getCurrentActor();
 
   // Checagem autoritativa no servidor (RNF-002): o middleware só evita flash de UI.
-  if (!actor || !isInternal(actor)) {
-    redirect("/login");
-  }
+  if (!actor) redirect("/login");
+  if (isExternal(actor)) redirect("/portal-fornecedor");
+  if (!isInternal(actor)) redirect("/login");
 
   return (
     <div className="flex min-h-screen">

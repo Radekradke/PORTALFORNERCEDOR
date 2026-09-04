@@ -32,6 +32,8 @@ export async function loginAction(
   const ip = headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = headerList.get("user-agent");
 
+  let destination = "/dashboard";
+
   try {
     const session = await login({
       email: parsed.data.email,
@@ -40,6 +42,10 @@ export async function loginAction(
       userAgent,
     });
     setSessionCookie(session.token, session.expiresAt);
+    destination =
+      session.role === "FORNECEDOR_ADMIN" || session.role === "FORNECEDOR_COLABORADOR"
+        ? "/portal-fornecedor"
+        : "/dashboard";
   } catch (err) {
     if (err instanceof LoginError) {
       return { error: err.message };
@@ -47,5 +53,5 @@ export async function loginAction(
     throw err;
   }
 
-  redirect("/dashboard");
+  redirect(destination);
 }

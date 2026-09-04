@@ -1,3 +1,4 @@
+import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEnv } from "@/lib/env";
 import { verifyPassword } from "@/lib/password";
@@ -30,6 +31,7 @@ export interface LoginInput {
 export interface LoginResult {
   token: string;
   expiresAt: Date;
+  role: UserRole;
 }
 
 const GENERIC_INVALID_MESSAGE = "E-mail ou senha inválidos.";
@@ -39,8 +41,14 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   const email = input.email.trim().toLowerCase();
 
   // Limite por e-mail+IP: mitigação adicional de força bruta (ver rate-limit.ts).
+  // Deliberadamente mais folgado que o bloqueio de conta por falhas
+  // (LOGIN_MAX_ATTEMPTS/lockedUntil, abaixo): esta camada existe para conter
+  // um flood de requisições, não para punir logins legítimos e frequentes
+  // (múltiplas abas, dispositivos, turnos). Contar tentativas com sucesso
+  // aqui é intencional — evita esconder um ataque de credential-stuffing
+  // distribuído por muitos e-mails a partir do mesmo IP.
   const rateLimitKey = `login:${email}:${input.ip ?? "unknown"}`;
-  const rate = checkRateLimit(rateLimitKey, env.LOGIN_MAX_ATTEMPTS * 2, 15 * 60 * 1000);
+  const rate = checkRateLimit(rateLimitKey, 20, 5 * 60 * 1000);
   if (!rate.allowed) {
     throw new LoginError("Muitas tentativas. Tente novamente em alguns minutos.", "RATE_LIMITED");
   }
@@ -160,7 +168,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     );
   });
 
-  return session;
+  return { ...session, role: user.role };
 }
 
 export async function logout(

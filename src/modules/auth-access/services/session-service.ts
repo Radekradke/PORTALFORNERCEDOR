@@ -66,7 +66,7 @@ export async function getActorFromToken(token: string): Promise<Actor | null> {
     email: user.email,
     role: user.role,
     status: user.status,
-    organizationId: user.organizationId,
+    supplierId: user.supplierId,
     sensitivePermissions: user.grantedPermissions.map((p) => p.permission),
   };
 }

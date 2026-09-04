@@ -10,7 +10,7 @@ export interface Actor {
   email: string;
   role: UserRole;
   status: UserStatus;
-  organizationId: string | null;
+  supplierId: string | null;
   sensitivePermissions: SensitivePermission[];
 }
 
