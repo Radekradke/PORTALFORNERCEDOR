@@ -11,7 +11,7 @@ também `CLAUDE.md` antes de alterar domínio, permissões, estados ou fluxos.
 
 ## Status desta entrega
 
-**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores).**
+**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos).**
 
 F0/F1 incluem: scaffold Next.js/TypeScript/Tailwind, Docker Compose
 (PostgreSQL + MinIO + Mailpit), autenticação local (Argon2id), sessão em
@@ -27,11 +27,20 @@ criticidade e responsáveis internos, portal externo isolado por fornecedor
 rejeitado → inativo), e situação operacional manual (suspender/bloquear/
 desbloquear) usando as permissões sensíveis já definidas na F1.
 
-Documentos, qualificação, fiscalização, NC e dashboard de risco **ainda não
-existem** — entram nas fatias F3 a F7 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu
-interno e o menu do portal externo já mostram a arquitetura de informação
-completa da especificação, com os itens ainda não implementados marcados
-como "em breve" (não são links falsos).
+F3 adiciona: tipos de documento e matriz de requisitos por categoria/
+criticidade (RF-030 a RF-038), aplicada automaticamente ao validar o
+cadastro (e reaplicável sob demanda), upload privado de documento via MinIO/S3
+com validação real de conteúdo (assinatura binária, não extensão),
+versionamento sem sobrescrever arquivo/parecer anterior, fila e tela de
+análise para QSMS (aprovar/rejeitar com motivo), cálculo de vencimento/
+vencendo sob demanda, e download privado por URL temporária com auditoria
+de acesso.
+
+Qualificação, fiscalização, NC e dashboard de risco **ainda não existem** —
+entram nas fatias F4 a F7 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o
+menu do portal externo já mostram a arquitetura de informação completa da
+especificação, com os itens ainda não implementados marcados como "em breve"
+(não são links falsos).
 
 ## Stack
 
@@ -91,7 +100,12 @@ Acesse `http://localhost:3000`.
 |---|---|---|---|---|
 | Alfa Materiais | Em preenchimento | Regular | `admin@alfa-materiais.local` | `Alfa#2026Local` |
 | Beta Serviços | Enviado para análise | Regular | `admin@beta-servicos.local` | `Beta#2026Local` |
-| Gama Industrial | Cadastro validado | Bloqueado | `admin@gama-industrial.local` | `Gama#2026Local` |
+| Gama Industrial | Cadastro validado (3 requisitos pendentes) | Bloqueado | `admin@gama-industrial.local` | `Gama#2026Local` |
+
+**Requisitos semeados**: tipos de documento `ART` (validade fixa, 365 dias,
+exige data de emissão, só PDF), `PPRA-PGR` (validade informada no envio) e
+`ALVARA` (sem vencimento), com regras vinculando-os às categorias
+"Materiais elétricos" e "Serviços de manutenção" por criticidade.
 
 ### Ferramentas locais
 
@@ -105,7 +119,7 @@ Acesse `http://localhost:3000`.
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # TypeScript estrito
-npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ)
+npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo)
 npm run build       # build de produção
 
 # Testes de ponta a ponta (requer app rodando em http://localhost:3000,
@@ -125,25 +139,27 @@ npm run db:reset   # aplica migrations do zero e roda o seed automaticamente
 src/
   app/                    # rotas Next.js (App Router)
     (auth)/               # login, esqueci-senha, redefinir-senha
-    (internal)/           # dashboard, fornecedores, categorias, usuários, auditoria
-    portal-fornecedor/    # portal externo (início, minha empresa, histórico)
-    api/health/           # health check
+    (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, usuários, auditoria
+    portal-fornecedor/    # portal externo (início, minha empresa, documentos, histórico)
+    api/                  # health check, download privado de documento
   modules/                # domínio/serviços por módulo coerente
     auth-access/          # login, sessão, recuperação de senha, authorize()
     users-permissions/    # usuários internos e permissões sensíveis
     suppliers/            # cadastro, convite, revisão, situação operacional
     categories/           # catálogo de categorias
+    requirements/         # tipos de documento, matriz e aplicação (RF-030 a RF-038)
+    documents/             # upload, versionamento, análise e conformidade (RF-040 a RF-052)
     audit/                # trilha de auditoria (interna e visível ao fornecedor)
   components/
     ui/                   # componentes shadcn/ui (button, input, table...)
     layout/                # sidebar, topbar, nav externa, badges de status
-  lib/                    # env, prisma, senha, tokens, rate-limit, mail, storage, tempo, cnpj
+  lib/                    # env, prisma, senha, tokens, rate-limit, mail, storage, tempo, cnpj, validação de arquivo
 prisma/
   schema.prisma
   seed.ts
 tests/
   unit/                   # Vitest
-  e2e/                    # Playwright
+  e2e/                    # Playwright (inclui fixtures/sample.pdf para upload)
 docs/
   REGRAS_FUNCIONAIS.md              # resumo operacional (fonte de verdade)
   ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt  # especificação completa recebida
@@ -167,11 +183,11 @@ docs/
   ocultando botão na interface. Ações de fornecedor verificam também a posse
   do recurso (`resource.supplierId === actor.supplierId`) para isolamento
   externo (RN-021, CA-03).
-- Toda mutação crítica (usuários, permissões, fornecedores, situação
-  operacional, login, logout) grava `AuditLog` na mesma transação; eventos
-  relevantes ao fornecedor ficam marcados `visibility: "externa"` e só esses
-  aparecem no histórico do portal externo — nunca dados de outro fornecedor
-  nem anotações internas.
+- Toda mutação crítica (usuários, permissões, fornecedores, requisitos,
+  documentos, situação operacional, login, logout) grava `AuditLog` na
+  mesma transação; eventos relevantes ao fornecedor ficam marcados
+  `visibility: "externa"` e só esses aparecem no histórico do portal
+  externo — nunca dados de outro fornecedor nem anotações internas.
 - Links de definição/redefinição de senha (reaproveitados também para
   convite de fornecedor) são de uso único, expiram em
   `PASSWORD_RESET_TTL_MINUTES` e nunca revelam se um e-mail existe no
@@ -179,22 +195,34 @@ docs/
 - CNPJ é validado por dígito verificador (mod 11) no servidor antes de
   aceitar o cadastro — sem qualquer chamada externa (consulta automática de
   CNPJ está fora do escopo v0.1).
+- Upload de documento nunca confia na extensão nem no `Content-Type`
+  declarado pelo navegador: o servidor confere a assinatura binária real do
+  arquivo (`src/lib/file-validation.ts`) contra PDF/JPG/PNG antes de aceitar,
+  além de validar tamanho máximo (`MAX_UPLOAD_SIZE_MB`) e o subconjunto de
+  formatos do tipo de requisito.
+- Arquivo fica em bucket privado (MinIO/S3) sob uma chave interna aleatória
+  (nunca derivada do nome enviado); download só acontece via URL assinada de
+  60 segundos, gerada depois de conferir organização e permissão no
+  servidor, e o acesso é auditado (RF-118, RNF-003, RNF-004).
 
 ## O que ainda não está pronto (limitações honestas desta fatia)
 
-- Não há documentos, qualificação, fiscalização, NC ou dashboard de risco —
-  a interface mostra esses itens do menu como "em breve".
-- `StorageProvider` (MinIO/S3) está implementado como infraestrutura pronta,
-  mas ainda não é usado por nenhuma tela — é a base para a fatia F3
-  (documentos).
-- A matriz de requisitos por categoria/criticidade não existe ainda; F2 só
-  entrega o catálogo de categorias e o vínculo com o fornecedor.
-- Importação em lote de fornecedores (RF-024, SHOULD) e o fornecedor convidar
-  seus próprios colaboradores (RF-007, SHOULD) não foram implementados —
-  adiados deliberadamente, não esquecidos (ver `docs/DECISOES_PENDENTES.md`).
+- Não há qualificação, fiscalização, NC ou dashboard de risco — a interface
+  mostra esses itens do menu como "em breve".
+- Não há job agendado de vencimento: "vencendo"/"vencido" são calculados na
+  leitura a partir da validade e das janelas de alerta, sempre corretos,
+  mas nenhum e-mail proativo é disparado quando um documento entra na
+  janela — isso é uma feature de notificação (F7, junto de D-10).
+- Exceção/dispensa formal de requisito (RF-037) e atribuição de análise a
+  um usuário específico da fila (RF-044) são SHOULD e ficaram fora desta
+  fatia — adiadas deliberadamente, não esquecidas.
+- Exportação de relação documental (RF-052, SHOULD) não foi implementada.
+- Importação em lote de fornecedores (RF-024, SHOULD) e o fornecedor
+  convidar seus próprios colaboradores (RF-007, SHOULD) continuam fora do
+  escopo (adiadas na F2).
 - Edição do cadastro pelo fornecedor após "cadastro validado" não tem um
-  fluxo de reabertura dedicado nesta fatia (é preciso Compras inativar e
-  reativar); ver justificativa em `docs/DECISOES_PENDENTES.md`.
+  fluxo de reabertura dedicado (é preciso Compras inativar e reativar); ver
+  justificativa em `docs/DECISOES_PENDENTES.md`.
 - Rate limit é em memória por processo (ver `docs/DECISOES_PENDENTES.md`).
 - Auditoria interna mostra todos os eventos para os três perfis internos com
   permissão de leitura; segmentação fina por área é um refinamento futuro.
@@ -207,8 +235,10 @@ docs/
 
 ## Próxima fatia recomendada
 
-F3 — Requisitos e documentos: matriz configurável de requisitos por
-categoria/criticidade (`RequirementRule`), upload privado de documentos via
-`StorageProvider` (já implementado), versionamento, análise por QSMS,
-validade e alertas de vencimento — usando o catálogo de `Category` e o
-`Supplier` já existentes desta fatia.
+F4 — Qualificação: processo de qualificação vinculado ao fornecedor e à
+versão vigente da matriz (`Qualification`, `QualificationDecision`),
+pareceres de Compras/QSMS, decisão final (aprovado, aprovado com ressalvas,
+reprovado) usando a permissão sensível `QUALIFICATION_DECIDE` já concedida
+na F1, snapshot dos requisitos avaliados e bloqueio de aprovação normal
+enquanto houver requisito obrigatório não atendido (RF-051, já calculado
+pelo módulo `documents` desta fatia).

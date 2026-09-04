@@ -306,6 +306,122 @@ async function main() {
     console.log(`  fornecedor ok: ${s.legalName} (${s.registrationStatus})`);
   }
 
+  // ---------------------------------------------------------------------
+  // F3 — Tipos de documento e matriz de requisitos
+  // ---------------------------------------------------------------------
+
+  const requirementTypesData = [
+    {
+      code: "ART",
+      name: "ART de execução",
+      description: "Anotação de Responsabilidade Técnica da execução do serviço.",
+      allowedFormats: ["PDF"],
+      validityType: "FIXA" as const,
+      validityDays: 365,
+      needsIssueDate: true,
+    },
+    {
+      code: "PPRA-PGR",
+      name: "PPRA / PGR",
+      description: "Programa de Gerenciamento de Riscos vigente.",
+      allowedFormats: [] as string[],
+      validityType: "INFORMADA" as const,
+      validityDays: null as number | null,
+      needsIssueDate: false,
+    },
+    {
+      code: "ALVARA",
+      name: "Alvará de funcionamento",
+      description: "Alvará municipal de funcionamento.",
+      allowedFormats: [] as string[],
+      validityType: "SEM_VENCIMENTO" as const,
+      validityDays: null as number | null,
+      needsIssueDate: false,
+    },
+  ];
+
+  const requirementTypeIds = new Map<string, string>();
+  for (const rt of requirementTypesData) {
+    const type = await prisma.requirementType.upsert({
+      where: { code: rt.code },
+      update: {
+        name: rt.name,
+        description: rt.description,
+        allowedFormats: rt.allowedFormats,
+        validityType: rt.validityType,
+        validityDays: rt.validityDays,
+        needsIssueDate: rt.needsIssueDate,
+      },
+      create: rt,
+    });
+    requirementTypeIds.set(rt.code, type.id);
+    console.log(`  tipo de documento ok: ${rt.code}`);
+  }
+
+  interface SeedRule {
+    typeCode: string;
+    categoryCode: string;
+    criticalities: Array<"BAIXA" | "MEDIA" | "ALTA" | "CRITICA">;
+    obligation: "OBRIGATORIO" | "CONDICIONAL" | "INFORMATIVO";
+  }
+
+  const rulesData: SeedRule[] = [
+    { typeCode: "ART", categoryCode: "ELET", criticalities: ["MEDIA", "ALTA", "CRITICA"], obligation: "OBRIGATORIO" },
+    { typeCode: "PPRA-PGR", categoryCode: "SERV-MANUT", criticalities: ["ALTA", "CRITICA"], obligation: "OBRIGATORIO" },
+    {
+      typeCode: "ALVARA",
+      categoryCode: "ELET",
+      criticalities: ["BAIXA", "MEDIA", "ALTA", "CRITICA"],
+      obligation: "INFORMATIVO",
+    },
+  ];
+
+  const ruleIds = new Map<string, string>();
+  for (const r of rulesData) {
+    const requirementTypeId = requirementTypeIds.get(r.typeCode)!;
+    const categoryId = categoryIds.get(r.categoryCode)!;
+    const existingRule = await prisma.requirementRule.findFirst({
+      where: { requirementTypeId, categoryId },
+    });
+    const rule = existingRule
+      ? await prisma.requirementRule.update({
+          where: { id: existingRule.id },
+          data: { criticalities: r.criticalities, obligation: r.obligation, active: true },
+        })
+      : await prisma.requirementRule.create({
+          data: { requirementTypeId, categoryId, criticalities: r.criticalities, obligation: r.obligation },
+        });
+    ruleIds.set(`${r.typeCode}:${r.categoryCode}`, rule.id);
+    console.log(`  regra ok: ${r.typeCode} x ${r.categoryCode}`);
+  }
+
+  // Fornecedor Gama já está com cadastro validado no seed acima; aplicamos a
+  // matriz diretamente aqui (o serviço applyRequirementMatrix é acionado
+  // automaticamente pela tela quando a validação acontece pela interface —
+  // o seed grava direto no banco, então replica o resultado esperado).
+  const gama = await prisma.supplier.findUnique({ where: { cnpj: "13000003000177" } });
+  if (gama) {
+    const gamaRequirements: Array<{ typeCode: string; ruleKey: string; obligation: SeedRule["obligation"] }> = [
+      { typeCode: "ART", ruleKey: "ART:ELET", obligation: "OBRIGATORIO" },
+      { typeCode: "PPRA-PGR", ruleKey: "PPRA-PGR:SERV-MANUT", obligation: "OBRIGATORIO" },
+      { typeCode: "ALVARA", ruleKey: "ALVARA:ELET", obligation: "INFORMATIVO" },
+    ];
+    for (const gr of gamaRequirements) {
+      const requirementTypeId = requirementTypeIds.get(gr.typeCode)!;
+      await prisma.supplierRequirement.upsert({
+        where: { supplierId_requirementTypeId: { supplierId: gama.id, requirementTypeId } },
+        update: { obligation: gr.obligation, sourceRuleId: ruleIds.get(gr.ruleKey), active: true },
+        create: {
+          supplierId: gama.id,
+          requirementTypeId,
+          obligation: gr.obligation,
+          sourceRuleId: ruleIds.get(gr.ruleKey),
+        },
+      });
+    }
+    console.log("  matriz aplicada ao fornecedor Gama Industrial");
+  }
+
   console.log("Seed: concluído.");
 }
 

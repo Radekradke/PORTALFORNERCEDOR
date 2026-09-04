@@ -5,6 +5,7 @@ import { assertAuthorized } from "@/modules/auth-access/domain/authorize";
 import type { Actor } from "@/modules/auth-access/domain/actor";
 import { recordAudit } from "@/modules/audit/services/audit-service";
 import { requestPasswordReset } from "@/modules/auth-access/services/password-reset-service";
+import { applyRequirementMatrix } from "@/modules/requirements/services/apply-matrix-service";
 
 export class SupplierServiceError extends Error {}
 
@@ -507,6 +508,10 @@ export async function validateRegistration(
     context,
     extraData: { validatedAt: new Date() },
   });
+
+  // RF-036, fluxo 6.1 passo 5: a matriz de requisitos é aplicada assim que o
+  // cadastro é validado, gerando as pendências documentais do fornecedor.
+  await applyRequirementMatrix(actor, supplierId, context);
 }
 
 export async function requestAdjustments(
@@ -714,6 +719,11 @@ export async function updateSupplierGovernance(
       tx,
     );
   });
+
+  // RF-036: mudança de categoria/criticidade reaplica a matriz de
+  // requisitos (só tem efeito prático se o cadastro já foi validado alguma
+  // vez — antes disso não há matriz aplicada ainda).
+  await applyRequirementMatrix(actor, supplierId, context);
 }
 
 // -----------------------------------------------------------------------------

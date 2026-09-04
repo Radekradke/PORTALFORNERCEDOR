@@ -34,7 +34,13 @@ export type Action =
   | "supplier.block"
   | "supplier.unblock"
   | "category.view"
-  | "category.manage";
+  | "category.manage"
+  // F3 — requisitos e documentos
+  | "requirement.view"
+  | "requirement.manage"
+  | "document.view"
+  | "document.upload"
+  | "document.review";
 
 export interface ResourceContext {
   /** Fornecedor dono do recurso avaliado — obrigatório para ações "*.own" e para conferir isolamento externo. */
@@ -108,10 +114,38 @@ export function authorize(actor: Actor, action: Action, resource?: ResourceConte
     case "supplier.unblock":
       return hasPermission(actor, "SUPPLIER_UNBLOCK");
 
-    // Catálogo de categorias: Compras e QSMS gerenciam (RF-030; tabela
-    // "Resumo de permissões" - Categorias/requisitos: G/G).
+    // Catálogo de categorias e matriz de requisitos: Compras e QSMS
+    // gerenciam (RF-030, RF-032; tabela "Resumo de permissões" -
+    // Categorias/requisitos: G/G). Consulta é livre a todos os internos.
     case "category.manage":
+    case "requirement.manage":
       return actor.role === "COMPRAS" || actor.role === "QSMS";
+
+    case "requirement.view":
+      return actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS";
+
+    // Documentos: QSMS gerencia (analisa/aprova/rejeita), Admin TI e Compras
+    // só visualizam (tabela "Resumo de permissões" - Documentos: V/V/G).
+    // Fornecedor só vê e envia os do próprio CNPJ (RN-021, CA-03).
+    case "document.view":
+      if (actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS") {
+        return true;
+      }
+      if (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") {
+        return isOwnSupplier(actor, resource);
+      }
+      return false;
+
+    // Envio de documento: ambos os perfis externos podem (tabela "Perfis
+    // externos" - Colaborador do fornecedor: "Enviar documento/evidência").
+    case "document.upload":
+      return (
+        (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") &&
+        isOwnSupplier(actor, resource)
+      );
+
+    case "document.review":
+      return actor.role === "QSMS";
 
     default:
       return false;

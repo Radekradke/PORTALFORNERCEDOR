@@ -13,7 +13,8 @@ export const INTERNAL_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", enabled: true },
   { href: "/fornecedores", label: "Fornecedores", enabled: true },
   { href: "/categorias", label: "Categorias", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
-  { href: "/documentos", label: "Documentos", enabled: false },
+  { href: "/requisitos", label: "Requisitos", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
+  { href: "/documentos", label: "Documentos", enabled: true },
   { href: "/fiscalizacoes", label: "Fiscalizações", enabled: false },
   { href: "/nao-conformidades", label: "Não conformidades", enabled: false },
   { href: "/relatorios", label: "Relatórios", enabled: false },
@@ -25,7 +26,7 @@ export const INTERNAL_NAV: NavItem[] = [
 export const EXTERNAL_NAV: NavItem[] = [
   { href: "/portal-fornecedor", label: "Início", enabled: true },
   { href: "/portal-fornecedor/empresa", label: "Minha empresa", enabled: true },
-  { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: false },
+  { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: true },
   { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: false },
   { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: false },
   { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
@@ -94,4 +95,33 @@ export const SUPPLY_TYPE_LABELS: Record<string, string> = {
   MATERIAL: "Material",
   SERVICO: "Serviço",
   AMBOS: "Material e serviço",
+};
+
+export const OBLIGATION_LABELS: Record<string, string> = {
+  OBRIGATORIO: "Obrigatório",
+  CONDICIONAL: "Condicional",
+  INFORMATIVO: "Informativo",
+};
+
+export const VALIDITY_TYPE_LABELS: Record<string, string> = {
+  FIXA: "Validade fixa (dias a partir da emissão)",
+  INFORMADA: "Validade informada no envio",
+  SEM_VENCIMENTO: "Sem vencimento",
+};
+
+export const DOCUMENT_VERSION_STATUS_LABELS: Record<string, string> = {
+  ENVIADO: "Enviado",
+  EM_ANALISE: "Em análise",
+  APROVADO: "Aprovado",
+  REJEITADO: "Rejeitado",
+};
+
+export const COMPLIANCE_STATUS_LABELS: Record<string, string> = {
+  NAO_APLICAVEL: "Não aplicável",
+  PENDENTE: "Pendente",
+  AGUARDANDO_ANALISE: "Aguardando análise",
+  REJEITADO: "Rejeitado",
+  ATENDIDO: "Atendido",
+  VENCENDO: "Vencendo",
+  VENCIDO: "Vencido",
 };

@@ -1,9 +1,10 @@
 // Portal de Fiscalização e Gestão de Fornecedores - Lifting
-// Schema das fatias F0/F1 (fundação + acesso e autorização) e F2 (fornecedores).
+// Schema das fatias F0/F1 (fundação + acesso e autorização), F2 (fornecedores)
+// e F3 (requisitos e documentos).
 // Fonte de verdade das regras: docs/REGRAS_FUNCIONAIS.md
 //
-// Requisitos, documentos, qualificação, fiscalização e NC entram nas fatias
-// F3+ (ver docs/DECISOES_PENDENTES.md).
+// Qualificação, fiscalização e NC entram nas fatias F4+ (ver
+// docs/DECISOES_PENDENTES.md).
 
 generator client {
   provider = "prisma-client-js"
@@ -71,6 +72,9 @@ model User {
   permissionsGrantedBy  UserPermission[]        @relation("PermissionGrantor")
   auditLogsAsActor      AuditLog[]              @relation("AuditActor")
   supplierResponsibleOf SupplierResponsible[]   @relation("ResponsibleUser")
+  uploadedFiles         FileObject[]
+  documentVersionsSent      DocumentVersion[]   @relation("DocumentSubmitter")
+  documentVersionsReviewed  DocumentVersion[]   @relation("DocumentReviewer")
 
   @@index([supplierId])
   @@index([role])
@@ -277,6 +281,7 @@ model Supplier {
   contacts      SupplierContact[]
   categories    SupplierCategory[]
   responsibles  SupplierResponsible[]
+  requirements  SupplierRequirement[]
 
   @@index([registrationStatus])
   @@index([operationalStatus])
@@ -322,6 +327,7 @@ model Category {
   updatedAt DateTime @updatedAt
 
   supplierLinks SupplierCategory[]
+  requirementRules RequirementRule[]
 
   @@map("categories")
 }
@@ -357,4 +363,176 @@ model SupplierResponsible {
   @@index([supplierId])
   @@index([userId])
   @@map("supplier_responsibles")
+}
+
+// =============================================================================
+// F3 — Requisitos e documentos
+// =============================================================================
+
+// RF-034: como a validade é calculada para uma versão aprovada.
+enum ValidityType {
+  FIXA // validUntil = data de emissão + validityDays
+  INFORMADA // fornecedor informa a validade no envio
+  SEM_VENCIMENTO
+}
+
+// RF-033.
+enum RequirementObligation {
+  OBRIGATORIO
+  CONDICIONAL
+  INFORMATIVO
+}
+
+// Ciclo do documento (seção 5.4). "Pendente" é o SupplierRequirement sem
+// nenhuma versão ainda — não é um estado da versão em si. "Vencendo" e
+// "Vencido" são calculados na leitura a partir de validUntil (não
+// persistidos: não há job de vencimento nesta fatia, ver
+// docs/DECISOES_PENDENTES.md), então não entram neste enum.
+enum DocumentVersionStatus {
+  ENVIADO
+  EM_ANALISE
+  APROVADO
+  REJEITADO
+}
+
+// Tipo de documento/evidência (RF-031). O "Document" citado em
+// docs/REGRAS_FUNCIONAIS.md como entidade própria foi fundido em
+// SupplierRequirement nesta implementação — mesmo padrão de simplificação
+// já registrado para Organization/Supplier na F2 (ver DECISOES_PENDENTES.md).
+model RequirementType {
+  id               String        @id @default(cuid())
+  code             String        @unique
+  name             String
+  description      String?
+  allowedFormats   String[] // subconjunto de {PDF, JPG, PNG} — vazio = usa o teto global (RF-040)
+  validityType     ValidityType  @default(SEM_VENCIMENTO)
+  validityDays     Int? // usado quando validityType = FIXA
+  needsIssueDate   Boolean       @default(false)
+  alertWindowDays  Int[]         @default([60, 30, 15, 7]) // RN-008 (padrão proposto, configurável por tipo)
+  active           Boolean       @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rules        RequirementRule[]
+  requirements SupplierRequirement[]
+
+  @@map("requirement_types")
+}
+
+// Matriz de requisitos por categoria e criticidade (RF-032). Editar uma
+// regra NUNCA reescreve SupplierRequirement já gerados (RF-038) — apenas
+// reaplicar a matriz (ação explícita) recalcula o que é aplicável daqui
+// para frente.
+model RequirementRule {
+  id                String                @id @default(cuid())
+  requirementTypeId String
+  requirementType   RequirementType       @relation(fields: [requirementTypeId], references: [id])
+  categoryId        String
+  category          Category              @relation(fields: [categoryId], references: [id])
+  criticalities     Criticality[] // faixa de criticidade a que a regra se aplica (RF-032)
+  obligation        RequirementObligation @default(OBRIGATORIO)
+  active            Boolean               @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requirementTypeId])
+  @@index([categoryId])
+  @@map("requirement_rules")
+}
+
+// Instância do requisito aplicável a um fornecedor específico — o "slot"
+// onde as versões do documento são enviadas (RF-036, RF-051, RN-004).
+model SupplierRequirement {
+  id                String          @id @default(cuid())
+  supplierId        String
+  supplier          Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  requirementTypeId String
+  requirementType   RequirementType @relation(fields: [requirementTypeId], references: [id])
+
+  // Snapshot da obrigatoriedade no momento da aplicação da matriz (RF-038) —
+  // não muda retroativamente se a regra de origem for editada depois.
+  obligation   RequirementObligation
+  sourceRuleId String?
+
+  // RN-005: requisito condicional precisa registrar a decisão de
+  // aplicabilidade. Para OBRIGATORIO/INFORMATIVO, applicable é sempre true.
+  applicable            Boolean   @default(true)
+  applicabilityReason   String?
+  applicabilityDecidedById String?
+  applicabilityDecidedAt   DateTime?
+
+  // Reaplicar a matriz pode tornar um requisito não mais pertinente
+  // (categoria removida etc.); mantemos o histórico em vez de apagar.
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions DocumentVersion[]
+
+  @@unique([supplierId, requirementTypeId])
+  @@index([supplierId])
+  @@index([requirementTypeId])
+  @@map("supplier_requirements")
+}
+
+// Metadados do arquivo em si (RNF-003): nunca em coluna binária do
+// PostgreSQL, sempre no storage privado via StorageProvider (MinIO/S3).
+model FileObject {
+  id             String   @id @default(cuid())
+  originalName   String
+  mimeType       String
+  sizeBytes      Int
+  checksumSha256 String
+  storageKey     String   @unique // chave interna não previsível — nunca deriva do nome enviado
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  documentVersion DocumentVersion?
+
+  @@map("file_objects")
+}
+
+// Uma versão enviada de um documento (RF-042: reenvio nunca sobrescreve
+// versão nem parecer anterior).
+model DocumentVersion {
+  id                    String                @id @default(cuid())
+  supplierRequirementId String
+  supplierRequirement   SupplierRequirement   @relation(fields: [supplierRequirementId], references: [id], onDelete: Cascade)
+  versionNumber         Int
+
+  fileObjectId String     @unique
+  fileObject   FileObject @relation(fields: [fileObjectId], references: [id])
+
+  // Metadados informados no envio (RF-041).
+  documentNumber String?
+  issuer         String?
+  issuedAt       DateTime?
+  validUntil     DateTime? // calculado (FIXA) ou informado (INFORMADA) no envio; confirmado/ajustado na aprovação (RF-046)
+  submitterNote  String?
+
+  status DocumentVersionStatus @default(ENVIADO)
+
+  submittedById String
+  submittedBy   User   @relation("DocumentSubmitter", fields: [submittedById], references: [id])
+
+  reviewedById String?
+  reviewedBy   User?     @relation("DocumentReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  // RN-009: toda rejeição exige motivo externo claro. Aprovação pode levar parecer opcional.
+  reviewReason String?
+  // RF-050: observação interna nunca é exposta ao portal do fornecedor.
+  internalNote String?
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierRequirementId])
+  @@index([status])
+  @@index([validUntil])
+  @@map("document_versions")
 }

@@ -147,3 +147,32 @@ describe("authorize() — matriz de acesso F2 (fornecedores)", () => {
     ).toBe(true);
   });
 });
+
+describe("authorize() — matriz de acesso F3 (requisitos e documentos)", () => {
+  it("matriz de requisitos é gerenciada por Compras e QSMS; consulta livre aos internos", () => {
+    expect(authorize(makeActor({ role: "COMPRAS" }), "requirement.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "requirement.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "requirement.manage")).toBe(false);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "requirement.view")).toBe(true);
+  });
+
+  it("documentos: QSMS gerencia, Admin TI e Compras só visualizam (tabela Resumo de permissões)", () => {
+    expect(authorize(makeActor({ role: "QSMS" }), "document.review")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "document.review")).toBe(false);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "document.review")).toBe(false);
+
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "document.view")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "document.view")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "document.view")).toBe(true);
+  });
+
+  it("envio de documento é isolado por fornecedor e permitido a ambos os perfis externos", () => {
+    const admin = makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "supplier-A" });
+    const colaborador = makeActor({ role: "FORNECEDOR_COLABORADOR", supplierId: "supplier-A" });
+
+    expect(authorize(admin, "document.upload", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(colaborador, "document.upload", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(admin, "document.upload", { supplierId: "supplier-B" })).toBe(false);
+    expect(authorize(colaborador, "document.view", { supplierId: "supplier-B" })).toBe(false);
+  });
+});

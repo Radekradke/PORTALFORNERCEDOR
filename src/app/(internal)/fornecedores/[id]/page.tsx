@@ -4,7 +4,9 @@ import { authorize } from "@/modules/auth-access/domain/authorize";
 import { getSupplierById, listAssignableResponsibleUsers } from "@/modules/suppliers/services/supplier-service";
 import { listCategories } from "@/modules/categories/services/category-service";
 import { listAuditLogs } from "@/modules/audit/services/audit-query-service";
+import { listSupplierRequirements } from "@/modules/documents/services/document-service";
 import { Forbidden } from "@/components/layout/forbidden";
+import { DocumentsSection } from "./documents-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegistrationStatusBadge, OperationalStatusBadge, CriticalityBadge } from "@/components/layout/status-badges";
 import { CONTACT_TYPE_LABELS, SUPPLY_TYPE_LABELS } from "@/components/layout/nav-config";
@@ -39,11 +41,13 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
   const canSuspend = authorize(actor, "supplier.suspend");
   const canBlock = authorize(actor, "supplier.block");
   const canUnblock = authorize(actor, "supplier.unblock");
+  const canReapplyMatrix = authorize(actor, "requirement.manage");
 
-  const [categories, assignableUsers, history] = await Promise.all([
+  const [categories, assignableUsers, history, requirements] = await Promise.all([
     listCategories(actor),
     canGovern ? listAssignableResponsibleUsers(actor) : Promise.resolve([]),
     listAuditLogs(actor, { entityType: "Supplier", entityId: supplier.id, pageSize: 15 }),
+    listSupplierRequirements(actor, supplier.id),
   ]);
 
   const fields = { supplierId: supplier.id };
@@ -253,6 +257,15 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Documentos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DocumentsSection supplierId={supplier.id} requirements={requirements} canReapply={canReapplyMatrix} />
+        </CardContent>
+      </Card>
 
       {canGovern && (
         <Card>

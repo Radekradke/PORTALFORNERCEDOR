@@ -3,6 +3,8 @@ import {
   REGISTRATION_STATUS_LABELS,
   OPERATIONAL_STATUS_LABELS,
   CRITICALITY_LABELS,
+  COMPLIANCE_STATUS_LABELS,
+  DOCUMENT_VERSION_STATUS_LABELS,
 } from "./nav-config";
 
 const REGISTRATION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
@@ -42,4 +44,33 @@ const CRITICALITY_VARIANT: Record<string, "default" | "secondary" | "destructive
 export function CriticalityBadge({ criticality }: { criticality: string | null }) {
   if (!criticality) return <span className="text-xs text-muted-foreground">—</span>;
   return <Badge variant={CRITICALITY_VARIANT[criticality] ?? "default"}>{CRITICALITY_LABELS[criticality] ?? criticality}</Badge>;
+}
+
+const COMPLIANCE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  NAO_APLICAVEL: "secondary",
+  PENDENTE: "secondary",
+  AGUARDANDO_ANALISE: "warning",
+  REJEITADO: "destructive",
+  ATENDIDO: "success",
+  VENCENDO: "warning",
+  VENCIDO: "destructive",
+};
+
+export function ComplianceStatusBadge({ status }: { status: string }) {
+  return <Badge variant={COMPLIANCE_VARIANT[status] ?? "default"}>{COMPLIANCE_STATUS_LABELS[status] ?? status}</Badge>;
+}
+
+const DOCUMENT_VERSION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  ENVIADO: "secondary",
+  EM_ANALISE: "warning",
+  APROVADO: "success",
+  REJEITADO: "destructive",
+};
+
+export function DocumentVersionStatusBadge({ status }: { status: string }) {
+  return (
+    <Badge variant={DOCUMENT_VERSION_VARIANT[status] ?? "default"}>
+      {DOCUMENT_VERSION_STATUS_LABELS[status] ?? status}
+    </Badge>
+  );
 }

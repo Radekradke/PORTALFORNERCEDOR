@@ -13,9 +13,9 @@ de `docs/ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt`).
 | D-01 | Governança | Decisões sensíveis (qualificar, suspender, bloquear, aceitar exceção, reabrir NC) serão individuais ou exigirão aprovação conjunta de Compras e QSMS? | Modelado como permissão individual concedida pelo Admin TI (`UserPermission`). Aprovação conjunta **não** foi implementada — fica para quando a regra for aprovada. |
 | D-02 | Criticidade | Critérios objetivos de baixa/média/alta/crítica. | Campo existe e é obrigatório no convite (RF-015), mas o critério de escolha continua sendo julgamento de quem cadastra — nenhuma regra automática decide a criticidade. |
 | D-03 | Categorias | Taxonomia inicial de materiais/serviços. | Catálogo (`Category`) implementado e editável por Compras/QSMS na tela "Categorias"; a taxonomia inicial em si (quais categorias existem) é decisão operacional, não travada em código. |
-| D-04 | Documentos | Tipos obrigatórios por categoria e validade. | Não iniciado (entra em F3). |
+| D-04 | Documentos | Tipos obrigatórios por categoria e validade. | Mecanismo pronto (tela "Requisitos": tipos de documento + matriz por categoria/criticidade); quais tipos existem e com qual validade em cada categoria é decisão operacional, não travada em código. |
 | D-05 | Aprovadores | Quais usuários específicos de Compras/QSMS recebem cada permissão sensível. | Mecanismo pronto (tela "Usuários e permissões"); a lista de quem recebe o quê é decisão operacional, não travada em código. |
-| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado (entra em F3/F6). |
+| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido); NC entra em F6. |
 | D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). |
 | D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | Não iniciado (entra em F5). |
 | D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | Não iniciado (entra em F7). Enquanto não aprovado, qualquer indicador é apenas informativo. |
@@ -85,3 +85,40 @@ serem re-discutidas a cada revisão:
 - **RF-024 (importação em lote) e RF-007 (fornecedor convida/bloqueia
   colaborador) são SHOULD e ficaram fora desta fatia**, para manter o
   escopo entregável; não foram esquecidos, apenas adiados.
+
+## Decisões de implementação registradas na F3 (requisitos e documentos)
+
+- **`Document` (citado em `docs/REGRAS_FUNCIONAIS.md`) foi fundido em
+  `SupplierRequirement`**, mesmo padrão de simplificação já aplicado à
+  fusão Organization/Supplier na F2: o "requisito aplicável ao fornecedor"
+  e o "registro lógico do documento" são o mesmo conceito nesta
+  implementação — `DocumentVersion` aponta direto para
+  `SupplierRequirement`, sem uma tabela `Document` intermediária.
+- **"Vencendo"/"Vencido" são calculados na leitura, nunca persistidos.**
+  RF-048 pede atualização diária, o que sugeriria um job agendado; como a
+  stack não tem um worker/cron separado nesta fatia (só o processo Next.js
+  contínuo) e o valor é uma função pura de `validUntil` + janelas de alerta
+  + data atual, calcular sob demanda é sempre correto e evita inventar
+  infraestrutura de agendamento sem necessidade. Feature de notificação
+  proativa (avisar por e-mail quando entra na janela) fica para F7,
+  junto de D-10.
+- **RF-037 (exceção/dispensa formal) e RF-044 (atribuição de análise a um
+  usuário específico) são SHOULD e ficaram fora desta fatia** — mesmo
+  padrão de adiamento deliberado já usado para RF-024/RF-007 na F2.
+  RF-051 ("...ou exceção válida") portanto só considera hoje: obrigatório
+  + versão vigente aprovada e não vencida.
+- **"Iniciar análise" de documento é opcional, não obrigatório**: aprovar
+  ou rejeitar funciona tanto a partir de `ENVIADO` quanto de `EM_ANALISE`
+  (mesma leniência já usada no fluxo de revisão de cadastro da F2), para
+  não forçar um clique extra sem valor de negócio claro.
+- **RN-004 ("elimina duplicidades por tipo")**: quando mais de uma regra
+  ativa aponta para o mesmo tipo de documento (categorias diferentes do
+  mesmo fornecedor), prevalece a obrigatoriedade mais forte
+  (Obrigatório > Condicional > Informativo) — não há regra do negócio
+  definindo esse desempate, então adotamos a opção mais conservadora
+  (mais exigente) por padrão de segurança de conformidade.
+- **Motivo de rejeição sempre externo, observação interna sempre
+  separada** (RF-050, RN-009): `reviewReason` (obrigatório na rejeição,
+  visível ao fornecedor) e `internalNote` (opcional, nunca retornado nas
+  consultas do portal externo) são campos distintos desde o schema — não
+  depende de filtrar na camada de apresentação.

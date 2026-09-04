@@ -29,6 +29,9 @@ const envSchema = z.object({
     .default("true")
     .transform((v) => v === "true"),
 
+  // RF-040: tamanho máximo de upload configurável.
+  MAX_UPLOAD_SIZE_MB: z.coerce.number().int().positive().default(15),
+
   MAIL_PROVIDER: z.enum(["smtp", "console"]).default("smtp"),
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
