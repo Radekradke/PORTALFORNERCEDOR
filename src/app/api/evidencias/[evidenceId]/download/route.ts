@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentActor } from "@/modules/auth-access/services/current-actor";
 import { AuthorizationError } from "@/modules/auth-access/domain/authorize";
-import { getEvidenceDownloadUrl, InspectionServiceError } from "@/modules/inspections/services/inspection-service";
+import { getEvidenceDownloadUrl, EvidenceServiceError } from "@/modules/evidence/services/evidence-service";
 
 /**
- * Download privado de evidência de fiscalização (RNF-003) — mesmo padrão do
- * download de documento: confere permissão no servidor e só então assina
- * uma URL temporária.
+ * Download privado de evidência (fiscalização, NC ou plano de ação — RNF-003)
+ * — mesmo padrão do download de documento: confere permissão no servidor e
+ * só então assina uma URL temporária.
  */
 export async function GET(request: Request, { params }: { params: { evidenceId: string } }) {
   const actor = await getCurrentActor();
@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: { params: { evidenceId: 
     if (err instanceof AuthorizationError) {
       return NextResponse.json({ error: err.message }, { status: 403 });
     }
-    if (err instanceof InspectionServiceError) {
+    if (err instanceof EvidenceServiceError) {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
     throw err;

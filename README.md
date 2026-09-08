@@ -11,7 +11,7 @@ também `CLAUDE.md` antes de alterar domínio, permissões, estados ou fluxos.
 
 ## Status desta entrega
 
-**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação) + F5 (Fiscalização).**
+**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação) + F5 (Fiscalização) + F6 (Não conformidade e plano de ação).**
 
 F0/F1 incluem: scaffold Next.js/TypeScript/Tailwind, Docker Compose
 (PostgreSQL + MinIO + Mailpit), autenticação local (Argon2id), sessão em
@@ -62,7 +62,25 @@ percentual de conformidade excluindo itens não aplicáveis (RN-015);
 cancelamento com motivo (RF-082); resultado publicado no portal do
 fornecedor só quando concluída (RF-133, EXT-05).
 
-NC e dashboard de risco **ainda não existem** — entram nas fatias F6 e F7
+F6 adiciona: não conformidade (`NonConformity`, RF-090 a RF-099) criada
+manualmente por QSMS ou automaticamente a partir de um item de
+fiscalização respondido "não conforme" e marcado como gerador de desvio
+(CA-14, dentro da mesma transação da conclusão — RF-090); numeração única
+anual (RF-091, ex. `NC-2026-0041`); NC automática nasce como rascunho
+interno (`ABERTA`) até QSMS confirmar e publicar ao fornecedor; plano de
+ação do fornecedor com causa, ação, responsável, prazo e evidência,
+suportando rascunho e envio (RF-094); revisão (aceitar/rejeitar/pedir
+ajuste) por QSMS ou Compras com a permissão sensível `NC_DECIDE` (RF-095);
+correção com evidências anexadas sem apagar as anteriores; verificação
+remota ou presencial exclusiva de QSMS com decisão final de encerramento
+(RF-096); reabertura de NC encerrada com a permissão sensível `NC_REOPEN`
+já existente, motivo e novo prazo, sem apagar o encerramento anterior
+(RF-097); "vencida" calculada na leitura (RF-098) e sugestão (não
+automática) de suspensão para NC crítica vencida (RF-099, RN-016).
+`Evidence` (F5) passou a ser compartilhada entre fiscalização, NC e plano
+de ação, com download privado unificado num único módulo.
+
+Dashboard de risco/indicadores **ainda não existe** — entra na fatia F7
 (ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o menu do portal externo
 já mostram a arquitetura de informação completa da especificação, com os
 itens ainda não implementados marcados como "em breve" (não são links
@@ -115,8 +133,8 @@ Acesse `http://localhost:3000`.
 | Perfil | E-mail | Senha |
 |---|---|---|
 | Admin TI | `admin.ti@lifting.local` | `AdminTi#2026Local` |
-| Compras (decide qualificação, suspende, desbloqueia) | `compras@lifting.local` | `Compras#2026Local` |
-| QSMS (decide qualificação, bloqueia, reabre NC) | `qsms@lifting.local` | `Qsms#2026Local` |
+| Compras (decide qualificação, suspende, desbloqueia, decide NC) | `compras@lifting.local` | `Compras#2026Local` |
+| QSMS (decide qualificação, bloqueia, decide/reabre NC) | `qsms@lifting.local` | `Qsms#2026Local` |
 | Compras (bloqueado, para testar desbloqueio de usuário) | `compras.bloqueado@lifting.local` | `Bloqueado#2026Local` |
 | QSMS (convite pendente, sem senha ainda) | `qsms.convite@lifting.local` | — (use "Esqueci minha senha" ou veja o e-mail no Mailpit) |
 
@@ -149,7 +167,7 @@ fiscalização de teste em `/fiscalizacoes/novo`.
 ```bash
 npm run lint        # ESLint
 npm run typecheck   # TypeScript estrito
-npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo, estado de qualificação, resultado de fiscalização)
+npm run test        # Vitest (unitários — authorize(), senha, tokens, rate limit, CNPJ, conformidade documental, validação de arquivo, estado de qualificação, resultado de fiscalização, prazo/atraso de NC)
 npm run build       # build de produção
 
 # Testes de ponta a ponta (requer app rodando em http://localhost:3000,
@@ -169,8 +187,8 @@ npm run db:reset   # aplica migrations do zero e roda o seed automaticamente
 src/
   app/                    # rotas Next.js (App Router)
     (auth)/               # login, esqueci-senha, redefinir-senha
-    (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, checklists, fiscalizações, usuários, auditoria
-    portal-fornecedor/    # portal externo (início, minha empresa, documentos, qualificação, fiscalizações, histórico)
+    (internal)/           # dashboard, fornecedores, categorias, requisitos, documentos, checklists, fiscalizações, não conformidades, usuários, auditoria
+    portal-fornecedor/    # portal externo (início, minha empresa, documentos, qualificação, fiscalizações, não conformidades, histórico)
     api/                  # health check, download privado de documento/evidência
   modules/                # domínio/serviços por módulo coerente
     auth-access/          # login, sessão, recuperação de senha, authorize()
@@ -180,7 +198,9 @@ src/
     requirements/         # tipos de documento, matriz e aplicação (RF-030 a RF-038)
     documents/             # upload, versionamento, análise e conformidade (RF-040 a RF-052)
     qualifications/         # rodadas, decisão e bloqueio de aprovação normal (RF-060 a RF-067)
-    inspections/            # checklists, programação, execução e evidências (RF-070 a RF-082)
+    inspections/            # checklists, programação, execução e resultado (RF-070 a RF-082)
+    nonconformities/        # NC, plano de ação, revisão, verificação e reabertura (RF-090 a RF-099)
+    evidence/               # download privado unificado de evidência (fiscalização/NC/plano)
     audit/                # trilha de auditoria (interna e visível ao fornecedor)
   components/
     ui/                   # componentes shadcn/ui (button, input, table...)
@@ -217,17 +237,18 @@ docs/
   do recurso (`resource.supplierId === actor.supplierId`) para isolamento
   externo (RN-021, CA-03).
 - Toda mutação crítica (usuários, permissões, fornecedores, requisitos,
-  documentos, qualificação, fiscalizações, situação operacional, login,
-  logout) grava `AuditLog` na
+  documentos, qualificação, fiscalizações, não conformidades/plano de
+  ação, situação operacional, login, logout) grava `AuditLog` na
   mesma transação; eventos relevantes ao fornecedor ficam marcados
   `visibility: "externa"` e só esses aparecem no histórico do portal
   externo — nunca dados de outro fornecedor nem anotações internas.
-- Evidência de fiscalização reaproveita o mesmo storage privado e validação
-  de arquivo (assinatura binária) dos documentos; o portal externo só
-  enxerga uma fiscalização (e suas evidências) quando ela está concluída —
-  buscar por ID uma fiscalização programada, em andamento, cancelada ou de
-  outro fornecedor devolve "não encontrado", nunca um erro que revele a
-  diferença (RN-021, CA-03).
+- Evidência (fiscalização, NC ou plano de ação) reaproveita o mesmo
+  storage privado e validação de arquivo (assinatura binária) dos
+  documentos, num único módulo de download (`src/modules/evidence/`); o
+  portal externo só enxerga uma fiscalização quando concluída e uma NC
+  quando publicada (fora do rascunho automático `ABERTA`) — buscar por ID
+  um recurso ainda não liberado ou de outro fornecedor devolve "não
+  encontrado", nunca um erro que revele a diferença (RN-021, CA-03).
 - Links de definição/redefinição de senha (reaproveitados também para
   convite de fornecedor) são de uso único, expiram em
   `PASSWORD_RESET_TTL_MINUTES` e nunca revelam se um e-mail existe no
@@ -247,17 +268,22 @@ docs/
 
 ## O que ainda não está pronto (limitações honestas desta fatia)
 
-- Não há não conformidade, plano de ação ou dashboard de risco — a
-  interface mostra esses itens do menu como "em breve".
-- Fiscalização (F5) não cria automaticamente uma não conformidade quando um
-  item marcado como "gera NC" é respondido como não conforme — isso é
-  metadado preparado para a F6, que ainda não existe. Também não há edição/
-  reordenação de item de checklist já criado (só criar novo ou inativar o
-  modelo inteiro) nem relatório exportável (RF-081, SHOULD) — a tela de
-  detalhe da fiscalização já mostra tudo, só não gera um arquivo separado.
+- Não há dashboard de risco/indicadores (ICO) — a interface mostra esse
+  item do menu como "em breve".
+- Fiscalização (F5) não tem edição/reordenação de item de checklist já
+  criado (só criar novo ou inativar o modelo inteiro) nem relatório
+  exportável (RF-081, SHOULD) — a tela de detalhe já mostra tudo, só não
+  gera um arquivo separado.
 - Programação de fiscalização não valida vínculo com projeto/contrato
   formal (D-08): é texto livre. "Tipo" de fiscalização também é texto
   livre, sem taxonomia fixa (mesmo padrão de criticidade/categoria).
+- NC (F6) não tem pareceres múltiplos nem comprovante/relatório
+  exportável — só a decisão de revisão e a de verificação, cada uma uma
+  vez por ciclo. Escalonamento de notificação para NC vencida (RF-098) não
+  foi implementado (depende de D-10, sem infraestrutura de notificação
+  ainda) — só o selo "Vencida" calculado na leitura. A sugestão de
+  suspensão para NC crítica vencida (RF-099) é só um aviso na tela com
+  link para a ação já existente de suspender — nada automático (RN-016).
 - Qualificação (F4) não tem pareceres separados de Compras e QSMS (RF-062,
   SHOULD) nem comprovante imprimível (RF-067, SHOULD) — só a decisão final.
   Exceção formal de requisito (RF-037, já adiada na F3) continua sem
@@ -289,12 +315,13 @@ docs/
 
 ## Próxima fatia recomendada
 
-F6 — Não conformidade e plano de ação: criar `NonConformity` a partir de um
-item de fiscalização respondido como não conforme (consumindo o metadado
-`generatesNonConformity`/`defaultSeverity` já gravado no snapshot da F5) ou
-manualmente por usuário autorizado (RF-090); numeração única anual
-(RF-091, ex. NC-2026-0041); plano de ação do fornecedor com causa, ação,
-responsável, prazo e evidência (RF-094, reaproveitando o storage privado
-já existente); revisão (aceitar/rejeitar/ajustar) por QSMS ou Compras
-autorizado (RF-095); verificação e encerramento (RF-096); reabertura
-usando a permissão sensível `NC_REOPEN` já concedida no seed (RF-097).
+F7 — Operação: dashboard com KPIs cujo número sempre corresponde a uma
+lista filtrada navegável (CA-17 — fornecedores por status, documentos por
+vencer, fiscalizações pendentes, NCs vencidas), respeitando as permissões
+de quem está vendo; notificações internas/externas para os eventos que já
+existem hoje só como `AuditLog` (D-10 — qualificação decidida, fiscalização
+concluída, NC aberta/vencida, plano decidido); filtros e exportação
+autorizada nas listagens principais (RF-052, RF-020 e similares, todos
+adiados como SHOULD até aqui); e um primeiro rascunho, claramente marcado
+como não-definitivo, do Índice de Conformidade Operacional (D-09) usando
+os dados já existentes (documentos, qualificação, fiscalizações, NCs).

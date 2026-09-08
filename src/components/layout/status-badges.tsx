@@ -8,6 +8,7 @@ import {
   QUALIFICATION_STATUS_LABELS,
   INSPECTION_STATUS_LABELS,
   INSPECTION_RESPONSE_LABELS,
+  NC_STATUS_LABELS,
 } from "./nav-config";
 
 const REGISTRATION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
@@ -121,4 +122,22 @@ export function InspectionResponseBadge({ response }: { response: string | null 
       {INSPECTION_RESPONSE_LABELS[response] ?? response}
     </Badge>
   );
+}
+
+const NC_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  ABERTA: "secondary",
+  AGUARDANDO_PLANO: "warning",
+  PLANO_EM_ANALISE: "warning",
+  EM_CORRECAO: "warning",
+  AGUARDANDO_VERIFICACAO: "warning",
+  ENCERRADA: "success",
+};
+
+export function NcStatusBadge({ status }: { status: string }) {
+  return <Badge variant={NC_STATUS_VARIANT[status] ?? "default"}>{NC_STATUS_LABELS[status] ?? status}</Badge>;
+}
+
+export function OverdueBadge({ overdue }: { overdue: boolean }) {
+  if (!overdue) return null;
+  return <Badge variant="destructive">Vencida</Badge>;
 }

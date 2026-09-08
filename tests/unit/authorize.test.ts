@@ -242,3 +242,48 @@ describe("authorize() — matriz de acesso F5 (fiscalização)", () => {
     expect(authorize(fornecedorA, "inspection.view")).toBe(false);
   });
 });
+
+describe("authorize() — matriz de acesso F6 (não conformidade e plano de ação)", () => {
+  it("criar/gerenciar NC (nc.manage) é atribuição base de QSMS; Compras só decide com permissão", () => {
+    expect(authorize(makeActor({ role: "QSMS" }), "nc.manage")).toBe(true);
+    expect(authorize(makeActor({ role: "COMPRAS" }), "nc.manage")).toBe(false);
+    expect(authorize(makeActor({ role: "ADMIN_TI" }), "nc.manage")).toBe(false);
+  });
+
+  it("decidir plano (nc.decide) exige a permissão sensível NC_DECIDE, para Compras ou QSMS", () => {
+    const comprasSemPermissao = makeActor({ role: "COMPRAS" });
+    const comprasComPermissao = makeActor({ role: "COMPRAS", sensitivePermissions: ["NC_DECIDE"] });
+    const qsmsComPermissao = makeActor({ role: "QSMS", sensitivePermissions: ["NC_DECIDE"] });
+
+    expect(authorize(comprasSemPermissao, "nc.decide")).toBe(false);
+    expect(authorize(comprasComPermissao, "nc.decide")).toBe(true);
+    expect(authorize(qsmsComPermissao, "nc.decide")).toBe(true);
+  });
+
+  it("verificar correção (nc.verify) exige NC_DECIDE e é exclusivo de QSMS, mesmo para Compras autorizado", () => {
+    const qsmsComPermissao = makeActor({ role: "QSMS", sensitivePermissions: ["NC_DECIDE"] });
+    const comprasComPermissao = makeActor({ role: "COMPRAS", sensitivePermissions: ["NC_DECIDE"] });
+    const qsmsSemPermissao = makeActor({ role: "QSMS" });
+
+    expect(authorize(qsmsComPermissao, "nc.verify")).toBe(true);
+    expect(authorize(comprasComPermissao, "nc.verify")).toBe(false);
+    expect(authorize(qsmsSemPermissao, "nc.verify")).toBe(false);
+  });
+
+  it("reabertura (nc.reopen) exige a permissão sensível NC_REOPEN já existente", () => {
+    expect(authorize(makeActor({ role: "QSMS", sensitivePermissions: ["NC_REOPEN"] }), "nc.reopen")).toBe(true);
+    expect(authorize(makeActor({ role: "QSMS" }), "nc.reopen")).toBe(false);
+    expect(authorize(makeActor({ role: "COMPRAS", sensitivePermissions: ["NC_REOPEN"] }), "nc.reopen")).toBe(true);
+  });
+
+  it("fornecedor visualiza e responde só a própria NC, em qualquer estado", () => {
+    const fornecedorA = makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "supplier-A" });
+    expect(authorize(fornecedorA, "nc.view", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(fornecedorA, "nc.view", { supplierId: "supplier-B" })).toBe(false);
+    expect(authorize(fornecedorA, "nc.respond", { supplierId: "supplier-A" })).toBe(true);
+    expect(authorize(fornecedorA, "nc.respond", { supplierId: "supplier-B" })).toBe(false);
+
+    const colaboradorA = makeActor({ role: "FORNECEDOR_COLABORADOR", supplierId: "supplier-A" });
+    expect(authorize(colaboradorA, "nc.respond", { supplierId: "supplier-A" })).toBe(true);
+  });
+});

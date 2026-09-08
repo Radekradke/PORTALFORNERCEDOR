@@ -49,7 +49,14 @@ export type Action =
   | "checklist.view"
   | "checklist.manage"
   | "inspection.view"
-  | "inspection.manage"; // programar, executar, concluir, cancelar
+  | "inspection.manage" // programar, executar, concluir, cancelar
+  // F6 — não conformidade e plano de ação
+  | "nc.view"
+  | "nc.manage" // criar NC manual, confirmar rascunho automático (RF-090)
+  | "nc.decide" // aceitar/rejeitar/pedir ajuste no plano (RF-095)
+  | "nc.verify" // verificar correção e encerrar (RF-096, QSMS)
+  | "nc.reopen" // reabrir NC encerrada (RF-097)
+  | "nc.respond"; // fornecedor: enviar plano e evidência de correção
 
 export interface ResourceContext {
   /** Fornecedor dono do recurso avaliado — obrigatório para ações "*.own" e para conferir isolamento externo. */
@@ -197,6 +204,49 @@ export function authorize(actor: Actor, action: Action, resource?: ResourceConte
       return false;
     case "inspection.manage":
       return actor.role === "QSMS";
+
+    // NC: consulta é V/V/V como qualificação/fiscalização; fornecedor vê a
+    // própria (RN-021) — diferente de fiscalização, aqui não há filtro por
+    // estado: o fornecedor precisa ver a NC assim que ela é aberta para
+    // poder responder (fluxo 6.3).
+    case "nc.view":
+      if (actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS") {
+        return true;
+      }
+      if (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") {
+        return isOwnSupplier(actor, resource);
+      }
+      return false;
+
+    // Criar/gerenciar o registro da NC (RF-090) é atribuição base de QSMS
+    // (tabela "Resumo de permissões" - NC/Plano de ação: QSMS=G). Compras
+    // só participa via decisão sensível (abaixo).
+    case "nc.manage":
+      return actor.role === "QSMS";
+
+    // Decidir o plano (aceitar/rejeitar/ajustes, RF-095) é permissão
+    // sensível — "QSMS ou usuário autorizado de Compras".
+    case "nc.decide":
+      return hasPermission(actor, "NC_DECIDE");
+
+    // Verificação da correção (RF-096) é texto explícito da especificação
+    // como atribuição de QSMS (não menciona Compras como alternativa, ao
+    // contrário de RF-095) — some a permissão sensível NC_DECIDE também
+    // continua exigida, mas restrita ao papel QSMS.
+    case "nc.verify":
+      return actor.role === "QSMS" && hasPermission(actor, "NC_DECIDE");
+
+    // Reabertura (RF-097) é a permissão sensível já definida na F1.
+    case "nc.reopen":
+      return hasPermission(actor, "NC_REOPEN");
+
+    // Fornecedor responde (envia plano, evidência de correção) — ambos os
+    // perfis externos, isolado por CNPJ (mesmo padrão de document.upload).
+    case "nc.respond":
+      return (
+        (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") &&
+        isOwnSupplier(actor, resource)
+      );
 
     default:
       return false;

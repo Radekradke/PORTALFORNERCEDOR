@@ -108,14 +108,22 @@ async function main() {
 
   const grants: Array<{
     userId: string;
-    permission: "QUALIFICATION_DECIDE" | "SUPPLIER_SUSPEND" | "SUPPLIER_BLOCK" | "SUPPLIER_UNBLOCK" | "NC_REOPEN";
+    permission:
+      | "QUALIFICATION_DECIDE"
+      | "SUPPLIER_SUSPEND"
+      | "SUPPLIER_BLOCK"
+      | "SUPPLIER_UNBLOCK"
+      | "NC_REOPEN"
+      | "NC_DECIDE";
   }> = [
     { userId: compras.id, permission: "QUALIFICATION_DECIDE" },
     { userId: compras.id, permission: "SUPPLIER_SUSPEND" },
     { userId: compras.id, permission: "SUPPLIER_UNBLOCK" },
+    { userId: compras.id, permission: "NC_DECIDE" },
     { userId: qsms.id, permission: "QUALIFICATION_DECIDE" },
     { userId: qsms.id, permission: "SUPPLIER_BLOCK" },
     { userId: qsms.id, permission: "NC_REOPEN" },
+    { userId: qsms.id, permission: "NC_DECIDE" },
   ];
 
   for (const grant of grants) {

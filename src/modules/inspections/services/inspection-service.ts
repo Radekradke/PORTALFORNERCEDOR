@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from "node:crypto";
-import type { InspectionResponse, InspectionStatus, Prisma } from "@prisma/client";
+import type { InspectionResponse, InspectionStatus, Criticality, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEnv } from "@/lib/env";
 import { assertAuthorized, authorize } from "@/modules/auth-access/domain/authorize";
@@ -9,6 +9,10 @@ import { recordAudit } from "@/modules/audit/services/audit-service";
 import { getStorageProvider } from "@/lib/storage";
 import { validateUploadedFile, mimeTypeFor } from "@/lib/file-validation";
 import { evaluateInspection, type ChecklistSectionSnapshot } from "./inspection-result";
+import {
+  createNonConformityDraftFromInspectionAnswer,
+  type InspectionOriginContext,
+} from "@/modules/nonconformities/services/nc-service";
 
 export class InspectionServiceError extends Error {}
 
@@ -336,8 +340,9 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
     answers.map((a) => ({ itemId: a.itemId, response: a.response, observation: a.observation, hasEvidence: a.evidences.length > 0 })),
   );
 
+  const itemsById = new Map(sections.flatMap((s) => s.items).map((i) => [i.id, i]));
+
   if (!evaluation.canConclude) {
-    const itemsById = new Map(sections.flatMap((s) => s.items).map((i) => [i.id, i]));
     const summary = evaluation.issues
       .slice(0, 5)
       .map((issue) => itemsById.get(issue.itemId)?.text ?? issue.itemId)
@@ -345,6 +350,27 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
     throw new InspectionServiceError(
       `Não é possível concluir: há itens pendentes (RF-078). Verifique: ${summary}${evaluation.issues.length > 5 ? "…" : ""}`,
     );
+  }
+
+  // CA-14: resposta "não conforme" num item configurado como gerador de
+  // desvio cria um rascunho de NC ligado ao item — sempre dentro da mesma
+  // transação da conclusão, para não existir um estado intermediário
+  // "concluída mas sem os rascunhos esperados".
+  const answersById = new Map(answers.map((a) => [a.itemId, a]));
+  const ncOrigins: InspectionOriginContext[] = [];
+  for (const item of itemsById.values()) {
+    if (!item.generatesNonConformity) continue;
+    const answer = answersById.get(item.id);
+    if (answer?.response !== "NAO_CONFORME") continue;
+    ncOrigins.push({
+      inspectionId,
+      supplierId: inspection.supplierId,
+      answerId: answer.id,
+      itemId: item.id,
+      itemText: item.text,
+      observation: answer.observation,
+      defaultSeverity: (item.defaultSeverity as Criticality | null | undefined) ?? null,
+    });
   }
 
   await prisma.$transaction(async (tx) => {
@@ -358,6 +384,10 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
       },
     });
 
+    for (const origin of ncOrigins) {
+      await createNonConformityDraftFromInspectionAnswer(tx, actor, origin, context);
+    }
+
     await recordAudit(
       {
         actorId: actor.id,
@@ -365,7 +395,11 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
         entityType: "Inspection",
         entityId: inspectionId,
         supplierId: inspection.supplierId,
-        after: { conformityPercentage: evaluation.conformityPercentage, counts: evaluation.counts },
+        after: {
+          conformityPercentage: evaluation.conformityPercentage,
+          counts: evaluation.counts,
+          nonConformityDrafts: ncOrigins.length,
+        },
         context: auditCtx(context),
         // RF fluxo 6.2: a fiscalização concluída fica disponível no
         // prontuário do fornecedor — publica o resultado (EXT-05, RF-133).
@@ -375,7 +409,7 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
     );
   });
 
-  return evaluation;
+  return { ...evaluation, nonConformityDraftsCreated: ncOrigins.length };
 }
 
 export async function cancelInspection(actor: Actor, inspectionId: string, reason: string, context: RequestContext) {
@@ -408,32 +442,6 @@ export async function cancelInspection(actor: Actor, inspectionId: string, reaso
   });
 }
 
-// -----------------------------------------------------------------------------
-// Download privado de evidência (RNF-003, mesmo padrão de documentos)
-// -----------------------------------------------------------------------------
-
-export async function getEvidenceDownloadUrl(actor: Actor, evidenceId: string, context: RequestContext): Promise<string> {
-  const evidence = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    include: { fileObject: true, inspectionAnswer: { include: { inspection: true } } },
-  });
-  if (!evidence) throw new InspectionServiceError("Evidência não encontrada.");
-
-  const inspection = evidence.inspectionAnswer.inspection;
-  assertAuthorized(actor, "inspection.view", { supplierId: inspection.supplierId });
-  if (isExternal(actor) && inspection.status !== "CONCLUIDA") {
-    throw new InspectionServiceError("Evidência não encontrada.");
-  }
-
-  await recordAudit({
-    actorId: actor.id,
-    action: "inspection.evidence.download",
-    entityType: "Evidence",
-    entityId: evidenceId,
-    supplierId: inspection.supplierId,
-    context: auditCtx(context),
-    visibility: "interna",
-  });
-
-  return getStorageProvider().getSignedDownloadUrl(evidence.fileObject.storageKey, 60);
-}
+// Download privado de evidência: ver src/modules/evidence/services/evidence-service.ts
+// (RF-077, RF-093 — Evidence é compartilhada entre fiscalização, NC e plano
+// de ação desde a F6, e esse módulo passou a ser o único ponto de download).

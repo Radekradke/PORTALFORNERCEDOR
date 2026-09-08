@@ -17,7 +17,7 @@ export const INTERNAL_NAV: NavItem[] = [
   { href: "/documentos", label: "Documentos", enabled: true },
   { href: "/checklists", label: "Checklists", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
   { href: "/fiscalizacoes", label: "Fiscalizações", enabled: true },
-  { href: "/nao-conformidades", label: "Não conformidades", enabled: false },
+  { href: "/nao-conformidades", label: "Não conformidades", enabled: true },
   { href: "/relatorios", label: "Relatórios", enabled: false },
   { href: "/notificacoes", label: "Notificações", enabled: false },
   { href: "/usuarios", label: "Usuários e permissões", roles: ["ADMIN_TI"], enabled: true },
@@ -30,7 +30,7 @@ export const EXTERNAL_NAV: NavItem[] = [
   { href: "/portal-fornecedor/documentos", label: "Documentos", enabled: true },
   { href: "/portal-fornecedor/qualificacao", label: "Qualificação", enabled: true },
   { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: true },
-  { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: false },
+  { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: true },
   { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
   { href: "/portal-fornecedor/usuarios", label: "Usuários da empresa", roles: ["FORNECEDOR_ADMIN"], enabled: false },
   { href: "/portal-fornecedor/historico", label: "Histórico", enabled: true },
@@ -51,6 +51,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   SUPPLIER_UNBLOCK: "Desbloquear fornecedor",
   EXCEPTION_ACCEPT: "Aceitar exceção",
   NC_REOPEN: "Reabrir não conformidade",
+  NC_DECIDE: "Decidir plano de ação / verificação de NC",
 };
 
 export const REGISTRATION_STATUS_LABELS: Record<string, string> = {
@@ -146,6 +147,36 @@ export const INSPECTION_RESPONSE_LABELS: Record<string, string> = {
   CONFORME_COM_RESSALVA: "Conforme com ressalva",
   NAO_CONFORME: "Não conforme",
   NAO_APLICAVEL: "Não aplicável",
+};
+
+export const NC_STATUS_LABELS: Record<string, string> = {
+  ABERTA: "Rascunho (aberta)",
+  AGUARDANDO_PLANO: "Aguardando plano",
+  PLANO_EM_ANALISE: "Plano em análise",
+  EM_CORRECAO: "Em correção",
+  AGUARDANDO_VERIFICACAO: "Aguardando verificação",
+  ENCERRADA: "Encerrada",
+};
+
+export const NC_ORIGIN_LABELS: Record<string, string> = {
+  FISCALIZACAO: "Fiscalização",
+  MANUAL: "Manual",
+};
+
+export const ACTION_PLAN_DECISION_LABELS: Record<string, string> = {
+  ACEITO: "Aceito",
+  REJEITADO: "Rejeitado",
+  AJUSTES_SOLICITADOS: "Ajustes solicitados",
+};
+
+export const VERIFICATION_METHOD_LABELS: Record<string, string> = {
+  REMOTA: "Remota",
+  PRESENCIAL: "Presencial",
+};
+
+export const VERIFICATION_DECISION_LABELS: Record<string, string> = {
+  APROVADA: "Aprovada",
+  REJEITADA: "Rejeitada",
 };
 
 export const COMPLIANCE_STATUS_LABELS: Record<string, string> = {

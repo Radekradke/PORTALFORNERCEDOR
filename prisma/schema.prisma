@@ -42,6 +42,7 @@ enum SensitivePermission {
   SUPPLIER_UNBLOCK
   EXCEPTION_ACCEPT
   NC_REOPEN
+  NC_DECIDE
 }
 
 model User {
@@ -81,6 +82,14 @@ model User {
   inspectionsConcluded      Inspection[]        @relation("InspectionConcludedBy")
   inspectionsCancelled      Inspection[]        @relation("InspectionCancelledBy")
   evidencesUploaded         Evidence[]          @relation("EvidenceUploadedBy")
+  ncResponsibleOf           NonConformity[]     @relation("NcResponsible")
+  ncCreated                 NonConformity[]     @relation("NcCreatedBy")
+  ncOpened                  NonConformity[]     @relation("NcOpenedBy")
+  ncClosed                  NonConformity[]     @relation("NcClosedBy")
+  ncReopened                NonConformity[]     @relation("NcReopenedBy")
+  actionPlansSubmitted      CorrectiveAction[]  @relation("ActionPlanSubmittedBy")
+  actionPlansReviewed       CorrectiveAction[]  @relation("ActionPlanReviewedBy")
+  actionPlansVerified       CorrectiveAction[]  @relation("ActionPlanVerifiedBy")
 
   @@index([supplierId])
   @@index([role])
@@ -290,6 +299,7 @@ model Supplier {
   requirements  SupplierRequirement[]
   qualifications Qualification[]
   inspections   Inspection[]
+  nonConformities NonConformity[]
 
   @@index([registrationStatus])
   @@index([operationalStatus])
@@ -337,6 +347,7 @@ model Category {
   supplierLinks SupplierCategory[]
   requirementRules RequirementRule[]
   checklistTemplates ChecklistTemplate[]
+  nonConformities NonConformity[]
 
   @@map("categories")
 }
@@ -742,6 +753,7 @@ model Inspection {
   updatedAt DateTime @updatedAt
 
   answers InspectionAnswer[]
+  nonConformities NonConformity[]
 
   @@index([supplierId])
   @@index([status])
@@ -768,6 +780,7 @@ model InspectionAnswer {
   updatedAt DateTime @updatedAt
 
   evidences Evidence[]
+  nonConformities NonConformity[]
 
   @@unique([inspectionId, itemId])
   @@index([inspectionId])
@@ -777,18 +790,181 @@ model InspectionAnswer {
 // Foto/arquivo anexado a uma resposta (RF-077). Reaproveita FileObject/
 // StorageProvider já usados para documentos — mesmo contrato de upload
 // privado, hash e chave interna não previsível (RNF-003).
+// Evidência compartilhada (RF-077, RF-093, fluxo 6.3 "adiciona evidências de
+// execução"): a especificação já modela Evidence ligada a
+// Inspection/NC/CorrectiveAction ("Evidence | ... | FileObject;
+// Inspection/NC/Action"), então esta fatia (F6) generaliza o que a F5 criou
+// só para InspectionAnswer — três FKs opcionais, exatamente uma preenchida
+// por linha (validado no serviço, não no schema — mesma limitação já
+// registrada para User.supplierId condicional na F1).
 model Evidence {
-  id                 String           @id @default(cuid())
-  inspectionAnswerId String
-  inspectionAnswer   InspectionAnswer @relation(fields: [inspectionAnswerId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
   fileObjectId String     @unique
   fileObject   FileObject @relation(fields: [fileObjectId], references: [id])
 
   uploadedById String
-  uploadedBy   User   @relation("EvidenceUploadedBy", fields: [uploadedById], references: [id])
+  uploadedBy   User     @relation("EvidenceUploadedBy", fields: [uploadedById], references: [id])
   uploadedAt   DateTime @default(now())
+  description  String?
+
+  inspectionAnswerId String?
+  inspectionAnswer   InspectionAnswer? @relation(fields: [inspectionAnswerId], references: [id], onDelete: Cascade)
+
+  nonConformityId String?
+  nonConformity   NonConformity? @relation(fields: [nonConformityId], references: [id], onDelete: Cascade)
+
+  correctiveActionId String?
+  correctiveAction   CorrectiveAction? @relation(fields: [correctiveActionId], references: [id], onDelete: Cascade)
 
   @@index([inspectionAnswerId])
+  @@index([nonConformityId])
+  @@index([correctiveActionId])
   @@map("evidences")
+}
+
+// =============================================================================
+// F6 — Não conformidade e plano de ação
+// =============================================================================
+
+enum NonConformityOrigin {
+  FISCALIZACAO
+  MANUAL
+}
+
+// Seção 5.6. "Aberta" é o rascunho automático de CA-14 (item não conforme
+// gera NC vinculada) antes de QSMS confirmar e publicar ao fornecedor —
+// para criação manual (QSMS já preenche tudo de uma vez) esse rascunho não
+// tem função e a NC nasce direto em "Aguardando plano".
+enum NonConformityStatus {
+  ABERTA
+  AGUARDANDO_PLANO
+  PLANO_EM_ANALISE
+  EM_CORRECAO
+  AGUARDANDO_VERIFICACAO
+  ENCERRADA
+}
+
+enum ActionPlanDecision {
+  ACEITO
+  REJEITADO
+  AJUSTES_SOLICITADOS
+}
+
+enum VerificationMethod {
+  REMOTA
+  PRESENCIAL
+}
+
+enum VerificationDecision {
+  APROVADA
+  REJEITADA
+}
+
+// RF-090 a RF-099. `code` é o identificador único anual (RF-091,
+// NC-2026-0041) — gerado contando quantas já existem no ano, mesmo padrão
+// leniente já usado para DocumentVersion.versionNumber (F3): concorrência
+// alta o suficiente para colidir não é um cenário real deste MVP.
+model NonConformity {
+  id   String @id @default(cuid())
+  code String @unique
+  year Int
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  origin NonConformityOrigin
+  // Preenchidos só quando origin = FISCALIZACAO (CA-14) — nunca uma FK
+  // obrigatória, para não impedir criação manual (RF-090).
+  inspectionId       String?
+  inspection         Inspection?       @relation(fields: [inspectionId], references: [id])
+  inspectionAnswerId String?
+  inspectionAnswer   InspectionAnswer? @relation(fields: [inspectionAnswerId], references: [id])
+
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  severity    Criticality
+  description String
+
+  // RF-092: responsável interno pelo acompanhamento (Compras ou QSMS).
+  responsibleInternalId String
+  responsibleInternal   User   @relation("NcResponsible", fields: [responsibleInternalId], references: [id])
+
+  deadline DateTime // RN-017: sugestão por gravidade, sempre editável — nunca travada.
+
+  status NonConformityStatus @default(ABERTA)
+
+  createdById String
+  createdBy   User   @relation("NcCreatedBy", fields: [createdById], references: [id])
+
+  // ABERTA -> AGUARDANDO_PLANO: quando o rascunho é confirmado e passa a
+  // valer para o fornecedor (RF fluxo 6.3, "fornecedor recebe...").
+  openedAt   DateTime?
+  openedById String?
+  openedBy   User?     @relation("NcOpenedBy", fields: [openedById], references: [id])
+
+  closedAt   DateTime?
+  closedById String?
+  closedBy   User?     @relation("NcClosedBy", fields: [closedById], references: [id])
+
+  // RF-097: reabertura preserva o encerramento anterior (não sobrescreve
+  // closedAt/closedById — o histórico completo de cada ciclo fica no
+  // AuditLog, mesmo padrão já usado em decisões de qualificação/cadastro).
+  reopenedAt   DateTime?
+  reopenedById String?
+  reopenedBy   User?     @relation("NcReopenedBy", fields: [reopenedById], references: [id])
+  reopenReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidences  Evidence[]
+  actionPlan CorrectiveAction?
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([deadline])
+  @@map("non_conformities")
+}
+
+// Plano de ação (RF-094 a RF-096) — uma linha por NC, mutável ao longo do
+// ciclo (rascunho -> enviado -> revisado -> corrigido -> verificado).
+// Reenvio depois de "ajustes solicitados"/"rejeitado" sobrescreve os
+// campos de conteúdo; o histórico de cada decisão fica no AuditLog.
+model CorrectiveAction {
+  id              String        @id @default(cuid())
+  nonConformityId String        @unique
+  nonConformity   NonConformity @relation(fields: [nonConformityId], references: [id], onDelete: Cascade)
+
+  cause            String?
+  correctiveAction String?
+  responsibleName  String? // responsável do lado do fornecedor — texto livre, não é um User do sistema
+  proposedDeadline DateTime?
+
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   User?     @relation("ActionPlanSubmittedBy", fields: [submittedById], references: [id])
+
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?               @relation("ActionPlanReviewedBy", fields: [reviewedById], references: [id])
+  reviewDecision ActionPlanDecision?
+  reviewReason   String?
+
+  // Fornecedor sinaliza correção concluída (EM_CORRECAO -> AGUARDANDO_VERIFICACAO).
+  readyForVerificationAt DateTime?
+
+  verifiedAt           DateTime?
+  verifiedById         String?
+  verifiedBy           User?                 @relation("ActionPlanVerifiedBy", fields: [verifiedById], references: [id])
+  verificationMethod   VerificationMethod?
+  verificationDecision VerificationDecision?
+  verificationNote     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidences Evidence[]
+
+  @@map("corrective_actions")
 }

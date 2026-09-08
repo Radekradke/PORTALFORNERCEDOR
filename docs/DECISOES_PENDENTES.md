@@ -10,13 +10,13 @@ de `docs/ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt`).
 
 | ID | Tema | Pergunta | Status na F0/F1 |
 |---|---|---|---|
-| D-01 | Governança | Decisões sensíveis (qualificar, suspender, bloquear, aceitar exceção, reabrir NC) serão individuais ou exigirão aprovação conjunta de Compras e QSMS? | Modelado como permissão individual concedida pelo Admin TI (`UserPermission`). Aprovação conjunta **não** foi implementada — fica para quando a regra for aprovada. A F4 usa exatamente esse mecanismo para `QUALIFICATION_DECIDE`: qualquer usuário de Compras ou QSMS com a permissão concedida decide sozinho. |
+| D-01 | Governança | Decisões sensíveis (qualificar, suspender, bloquear, aceitar exceção, reabrir NC) serão individuais ou exigirão aprovação conjunta de Compras e QSMS? | Modelado como permissão individual concedida pelo Admin TI (`UserPermission`). Aprovação conjunta **não** foi implementada — fica para quando a regra for aprovada. A F4 usa exatamente esse mecanismo para `QUALIFICATION_DECIDE`; a F6 introduz `NC_DECIDE` (decidir plano/verificação) do mesmo jeito, além do `NC_REOPEN` já existente desde a F1 — cada uma é uma permissão individual, nunca uma aprovação conjunta obrigatória. |
 | D-02 | Criticidade | Critérios objetivos de baixa/média/alta/crítica. | Campo existe e é obrigatório no convite (RF-015), mas o critério de escolha continua sendo julgamento de quem cadastra — nenhuma regra automática decide a criticidade. |
 | D-03 | Categorias | Taxonomia inicial de materiais/serviços. | Catálogo (`Category`) implementado e editável por Compras/QSMS na tela "Categorias"; a taxonomia inicial em si (quais categorias existem) é decisão operacional, não travada em código. |
 | D-04 | Documentos | Tipos obrigatórios por categoria e validade. | Mecanismo pronto (tela "Requisitos": tipos de documento + matriz por categoria/criticidade); quais tipos existem e com qual validade em cada categoria é decisão operacional, não travada em código. |
 | D-05 | Aprovadores | Quais usuários específicos de Compras/QSMS recebem cada permissão sensível. | Mecanismo pronto (tela "Usuários e permissões"); a lista de quem recebe o quê é decisão operacional, não travada em código. |
-| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido) nem para qualificação (RF-060/RF-061 não definem prazo-alvo de decisão); NC entra em F6. |
-| D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). F5 marca item de checklist com `generatesNonConformity`/`defaultSeverity` (RF-073) só como metadado preparado para a F6 — nenhum efeito automático (bloqueio, NC) nasce disso ainda (RN-016: sugestão nunca equivale à decisão). |
+| D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido) nem para qualificação. Para NC, a F6 usa a tabela de RN-017 (baixa 30 dias, média 15, alta 7, crítica 1) só como **sugestão inicial de prazo** (`suggestedDeadline`), sempre editável antes de salvar — não é um SLA de verdade (sem escalonamento, sem cobrança automática). |
+| D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). F5 marca item de checklist com `generatesNonConformity`/`defaultSeverity` (RF-073) só como metadado consumido pela F6 para criar o *rascunho* da NC — nenhum bloqueio automático nasce disso. A F6 mostra apenas uma sugestão textual de suspensão para NC crítica vencida (RF-099); a efetivação sempre passa pela ação já existente de `supplier.suspend` (RN-016). |
 | D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | F5 usa a opção mais simples: `Inspection.projectOrLocation` é texto livre, sem cadastro de `Project`/`Contract`. Suficiente para registrar a fiscalização; relatórios por projeto/contrato ficam limitados a esse texto até a decisão ser tomada. |
 | D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | Não iniciado (entra em F7). Enquanto não aprovado, qualquer indicador é apenas informativo. |
 | D-10 | Notificações | Destinatários e escalonamentos que evitam excesso de e-mail. | Não iniciado (entra em F3+). |
@@ -206,6 +206,67 @@ serem re-discutidas a cada revisão:
 - **RF-073 (item sugere NC) só grava metadado** (`generatesNonConformity`,
   `defaultSeverity`) no snapshot da fiscalização — a criação de fato de uma
   `NonConformity` a partir de um item "não conforme" é responsabilidade da
-  F6, que ainda não existe. RF-081 (relatório simples, SHOULD) também ficou
-  fora desta fatia — a tela de detalhe já mostra tudo que um relatório
-  teria, só não gera um documento separado.
+  F6 (implementada — ver seção abaixo). RF-081 (relatório simples, SHOULD)
+  também ficou fora desta fatia — a tela de detalhe já mostra tudo que um
+  relatório teria, só não gera um documento separado.
+
+## Decisões de implementação registradas na F6 (não conformidade e plano de ação)
+
+- **`Evidence` deixou de ser exclusiva de fiscalização e virou entidade
+  compartilhada** entre `InspectionAnswer`, `NonConformity` e
+  `CorrectiveAction` (três FKs opcionais, exatamente uma preenchida por
+  linha, validado no serviço) — a especificação já descrevia Evidence
+  ligada a "Inspection/NC/Action", então isso não é invenção nova, é
+  completar o que a F5 tinha deixado parcial. O download privado também
+  foi unificado num único módulo (`src/modules/evidence/`), substituindo
+  a versão que só existia dentro de `inspections`.
+- **CA-14 implementado dentro da transação de conclusão da fiscalização**:
+  todo item respondido "não conforme" com `generatesNonConformity=true`
+  vira um rascunho de NC (`origin=FISCALIZACAO`, status `ABERTA`) na mesma
+  transação que marca a fiscalização como concluída — nunca existe um
+  estado intermediário "concluída mas sem os rascunhos esperados".
+- **Estado `ABERTA` só tem função real para NC automática**: criação
+  manual (QSMS já fornece tudo de uma vez, RF-092) nasce direto em
+  `AGUARDANDO_PLANO`; só o rascunho automático (CA-14) passa por `ABERTA`,
+  onde QSMS confirma/ajusta gravidade, categoria, responsável e prazo
+  antes de "abrir" a NC ao fornecedor. Essa é a única leitura consistente
+  dos dois documentos-fonte: `docs/REGRAS_FUNCIONAIS.md` lista `ABERTA`
+  como primeiro estado da máquina, mas RF-092 exige todos os campos já na
+  criação manual — não há o que "confirmar depois" nesse caso.
+- **Responsável do plano de ação (`CorrectiveAction.responsibleName`) é
+  texto livre**, não um `User` do sistema — é alguém do lado do
+  fornecedor, que normalmente não tem conta própria vinculada à NC. Mesmo
+  padrão já usado para `Qualification.conditionResponsible` (F4).
+  `responsibleInternalId` (quem acompanha pela Lifting) esse sim é um
+  `User` de Compras/QSMS.
+- **`CorrectiveAction` é uma linha só por NC**, reescrita a cada novo
+  ciclo (rascunho → enviado → revisado → corrigido → verificado); reenvio
+  depois de "ajustes"/"rejeitado" limpa os campos da decisão anterior para
+  começar um novo ciclo de revisão limpo. O histórico de cada decisão
+  continua no `AuditLog` — mesmo padrão de "não reescreva sem necessidade,
+  mas aqui a necessidade existe" já usado no plano de qualificação.
+- **Reabertura (RF-097) não trava o próximo estado**: quem reabre escolhe
+  explicitamente entre "aguardando plano", "em correção" ou "aguardando
+  verificação", porque a especificação não define uma regra fixa para
+  onde a NC deve voltar — inventar uma seria uma decisão de negócio não
+  aprovada. `closedAt`/`closedById` do encerramento anterior nunca são
+  apagados (só sobrescritos se a NC for encerrada de novo), satisfazendo
+  literalmente "sem apagar encerramento anterior".
+- **Verificação (RF-096) ficou restrita a QSMS**, mesmo com a permissão
+  sensível `NC_DECIDE` concedida a Compras também — a especificação nesse
+  ponto específico só menciona QSMS ("QSMS registra verificação..."), ao
+  contrário da revisão do plano (RF-095, que explicitamente inclui
+  "Compras autorizado"). `nc.verify` exige as duas coisas: papel QSMS e a
+  permissão.
+- **Número da NC (RF-091) usa o mesmo padrão leniente de numeração
+  sequencial** já usado em `DocumentVersion.versionNumber` (F3): conta
+  quantas existem no ano e soma 1, com retry em caso de colisão rara — sem
+  lock explícito, aceitável no volume deste MVP.
+- **RF-098 (atraso/escalonamento)**: "vencida" é calculada na leitura
+  (`isOverdue`, mesmo padrão de Vencendo/Vencido e do estado de
+  qualificação) e aparece como selo na lista e na ficha da NC. O
+  escalonamento de notificação em si não foi implementado (depende de
+  D-10, que ainda não tem infraestrutura de notificação).
+- **RF-062-equivalente para NC (pareceres múltiplos) não existe** — só
+  uma decisão de revisão e uma de verificação por ciclo, mesmo padrão de
+  simplificação já registrado para RF-062 na F4.
