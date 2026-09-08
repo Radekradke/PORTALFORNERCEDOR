@@ -78,6 +78,14 @@ test.describe("Fornecedores (F2)", () => {
     const supplierId = page.url().split("/").pop();
 
     await page.getByRole("button", { name: "Sair" }).click();
+    // Diferente dos outros "Sair" deste arquivo, o próximo passo não é
+    // `login()` (que já começa com `page.goto("/login")` e por isso absorve
+    // a navegação pendente do logout). Aqui o próximo destino é
+    // `/redefinir-senha`, então é preciso esperar o logout terminar — senão
+    // o middleware ainda vê o cookie de sessão da Compras, redireciona
+    // `/redefinir-senha` (rota pública) para "/", e a navegação do logout
+    // termina de resolver depois, jogando o teste de volta para /login.
+    await page.waitForURL("/login");
 
     // Busca o link de ativação no Mailpit
     const mailRes = await page.request.get("http://localhost:8025/api/v1/messages?limit=5");

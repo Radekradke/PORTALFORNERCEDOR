@@ -5,6 +5,7 @@ import type { Actor } from "@/modules/auth-access/domain/actor";
 import { recordAudit } from "@/modules/audit/services/audit-service";
 import { computeDocumentCompliance } from "@/modules/documents/services/document-compliance";
 import { computeQualificationStatus, canApproveNormally } from "./qualification-status";
+import { notifySupplierUsers, sendNotificationEmailToMany } from "@/modules/notifications/services/notification-service";
 
 export class QualificationServiceError extends Error {}
 
@@ -226,6 +227,15 @@ export async function decideQualification(actor: Actor, input: DecideQualificati
 
   const isRessalva = input.result === "APROVADO_COM_RESSALVAS";
 
+  const RESULT_LABELS: Record<QualificationResult, string> = {
+    APROVADO: "Aprovado",
+    APROVADO_COM_RESSALVAS: "Aprovado com ressalvas",
+    REPROVADO: "Reprovado",
+  };
+  const title = "Resultado da qualificação disponível";
+  const message = `A rodada ${round.round} de qualificação foi decidida: ${RESULT_LABELS[input.result]}.`;
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.qualification.update({
       where: { id: input.qualificationId },
@@ -259,5 +269,16 @@ export async function decideQualification(actor: Actor, input: DecideQualificati
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, round.supplierId, {
+      type: "qualification.decide",
+      title,
+      message,
+      link: "/portal-fornecedor/qualificacao",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/qualificacao");
+  }
 }

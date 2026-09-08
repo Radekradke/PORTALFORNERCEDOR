@@ -56,7 +56,10 @@ export type Action =
   | "nc.decide" // aceitar/rejeitar/pedir ajuste no plano (RF-095)
   | "nc.verify" // verificar correção e encerrar (RF-096, QSMS)
   | "nc.reopen" // reabrir NC encerrada (RF-097)
-  | "nc.respond"; // fornecedor: enviar plano e evidência de correção
+  | "nc.respond" // fornecedor: enviar plano e evidência de correção
+  // F7 — operação (dashboard, relatórios/exportação)
+  | "dashboard.view"
+  | "report.export"; // exportação respeitando filtros e permissões (RF-115, CA-20)
 
 export interface ResourceContext {
   /** Fornecedor dono do recurso avaliado — obrigatório para ações "*.own" e para conferir isolamento externo. */
@@ -247,6 +250,17 @@ export function authorize(actor: Actor, action: Action, resource?: ResourceConte
         (actor.role === "FORNECEDOR_ADMIN" || actor.role === "FORNECEDOR_COLABORADOR") &&
         isOwnSupplier(actor, resource)
       );
+
+    // Dashboard (RF-110): livre aos três perfis internos, cada KPI já
+    // reaproveita a autorização da lista que ele abre (CA-17) — fornecedor
+    // nunca chega aqui (redirecionado ao próprio portal pelo layout).
+    case "dashboard.view":
+      return actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS";
+
+    // Exportação (RF-115, CA-20): mesmos papéis que já podem visualizar a
+    // lista de origem — nunca mais permissivo que a tela de onde exporta.
+    case "report.export":
+      return actor.role === "ADMIN_TI" || actor.role === "COMPRAS" || actor.role === "QSMS";
 
     default:
       return false;

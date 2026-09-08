@@ -18,8 +18,8 @@ de `docs/ESPECIFICACAO_FUNCIONAL_v0.1_fonte.txt`).
 | D-06 | SLA | Prazos de análise documental e correção de NC por gravidade. | Não iniciado para documentos (fila RF-043 mostra idade, mas não há prazo-alvo definido) nem para qualificação. Para NC, a F6 usa a tabela de RN-017 (baixa 30 dias, média 15, alta 7, crítica 1) só como **sugestão inicial de prazo** (`suggestedDeadline`), sempre editável antes de salvar — não é um SLA de verdade (sem escalonamento, sem cobrança automática). |
 | D-07 | Bloqueios | Quais eventos bloqueiam automaticamente vs. apenas alertam. | Não iniciado. Regra de produto: nenhum bloqueio automático definitivo sem aprovação (ver `guardar-escopo-mvp`). F5 marca item de checklist com `generatesNonConformity`/`defaultSeverity` (RF-073) só como metadado consumido pela F6 para criar o *rascunho* da NC — nenhum bloqueio automático nasce disso. A F6 mostra apenas uma sugestão textual de suspensão para NC crítica vencida (RF-099); a efetivação sempre passa pela ação já existente de `supplier.suspend` (RN-016). |
 | D-08 | Projetos/contratos | Cadastro completo ou apenas referência por código/nome. | F5 usa a opção mais simples: `Inspection.projectOrLocation` é texto livre, sem cadastro de `Project`/`Contract`. Suficiente para registrar a fiscalização; relatórios por projeto/contrato ficam limitados a esse texto até a decisão ser tomada. |
-| D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | Não iniciado (entra em F7). Enquanto não aprovado, qualquer indicador é apenas informativo. |
-| D-10 | Notificações | Destinatários e escalonamentos que evitam excesso de e-mail. | Não iniciado (entra em F3+). |
+| D-09 | Indicador ICO | Fórmula do Índice de Conformidade Operacional. | **F7 implementa a fórmula proposta pela especificação** (documentação 40% + fiscalizações 40% + NC 20%, ver `ico-calculator.ts`) só como valor informativo — toda tela que mostra o ICO exibe a fórmula e o cálculo por fornecedor, e o valor nunca é usado para bloquear ou decidir nada automaticamente (RN-016). Os pesos de penalidade por gravidade de NC (`SEVERITY_PENALTY`) são um ponto de partida razoável, não aprovado. |
+| D-10 | Notificações | Destinatários e escalonamentos que evitam excesso de e-mail. | **F7 implementa notificação in-portal + e-mail só para eventos com destinatário inequívoco**: a própria empresa do fornecedor (todos os usuários ativos dela) ou uma pessoa interna especificamente designada (responsável de NC). Eventos cujo destinatário natural seria "um grupo/perfil" (ex.: avisar todo o time de Compras que um cadastro foi enviado) **não foram implementados**, para não inventar uma regra de escalonamento/rodízio sem aprovação. Não há notificação proativa/agendada (ex.: alerta noturno de NC vencida) — sem worker/cron nesta stack, mesma limitação já registrada para vencimento de documento na F3. |
 | D-11 | Retenção | Tempo de retenção de documentos, evidências, logs e contatos (LGPD). | Não iniciado. |
 | D-12 | Identidade | Login local ou integração corporativa (Microsoft/Google) para contas internas. | **F1 usa autenticação local** (Argon2id) conforme stack obrigatória. Interface preparada para trocar/adicionar provedor sem reescrever o domínio (`AuthProvider` pode ser extraído quando a decisão for tomada). |
 | D-13 | Infraestrutura | Hospedagem, storage e e-mail de produção. | F0 usa MinIO/Mailpit/PostgreSQL locais via Docker Compose, sem dependência paga. |
@@ -270,3 +270,80 @@ serem re-discutidas a cada revisão:
 - **RF-062-equivalente para NC (pareceres múltiplos) não existe** — só
   uma decisão de revisão e uma de verificação por ciclo, mesmo padrão de
   simplificação já registrado para RF-062 na F4.
+
+## Decisões de implementação registradas na F7 (operação: dashboard, notificações, ICO, exportação)
+
+- **`Notification` é um modelo novo e simples**: `type` é texto livre (mesmo
+  padrão de `AuditLog.action`, sem enum fechado), com `userId`, `title`,
+  `message`, `link` e `supplierId` opcional. Não existe fila/worker: a
+  notificação é criada dentro da mesma transação do evento de negócio que a
+  originou (nunca "ação aconteceu mas o aviso não foi criado"), e o e-mail
+  correspondente é enviado depois, fora da transação — mesmo padrão já
+  estabelecido em `password-reset-service.ts` (F1): falha de e-mail nunca
+  desfaz a mutação nem remove o alerta já gravado no portal (RN-022, "o
+  registro central é a fonte oficial").
+- **Escopo de eventos notificados foi deliberadamente contido** (ver D-10
+  acima): cadastro validado/rejeitado/ajustes solicitados, mudança de
+  situação operacional (suspenso/bloqueado/normalizado), documento
+  aprovado/rejeitado, resultado de qualificação, fiscalização
+  programada/concluída, e os eventos de não conformidade que já eram
+  publicados ao fornecedor (nova NC, decisão de plano, verificação) mais a
+  designação do responsável interno de uma NC nova. Cada um desses tem
+  exatamente um destinatário natural (a empresa inteira do fornecedor, ou a
+  pessoa interna designada) — nunca um "todo o time de Compras" inventado.
+- **Notificação para "o fornecedor" vai para todos os usuários ativos
+  daquela empresa**, não para um único contato escolhido arbitrariamente —
+  é o mesmo limite de isolamento por organização usado no resto do portal,
+  só que "todo mundo dessa organização" em vez de "só quem está logado
+  agora". Implementado em `notifySupplierUsers` (cria uma linha de
+  `Notification` por usuário ativo, dentro da transação) +
+  `sendNotificationEmailToMany` (dispara os e-mails depois, em paralelo,
+  cada um best-effort).
+- **ICO (RF-113, RN-023, D-09)**: implementado como puramente informativo.
+  `getIcoBySupplier`/`getAverageIco` calculam sob demanda a cada acesso ao
+  dashboard — mesmo padrão de cálculo-na-leitura já usado para
+  Vencendo/Vencido (F3), estado de qualificação (F4) e "vencida" de NC
+  (F6). Só entram no cálculo fornecedores com cadastro validado; a nota de
+  documentação usa só requisitos obrigatórios ativos, a de fiscalização usa
+  a média de conformidade das fiscalizações concluídas nos últimos 12
+  meses, e a de NC penaliza por gravidade e atraso das NCs ainda abertas
+  (pesos documentados em `ico-calculator.ts`, não aprovados formalmente).
+  Um componente sem dado (nenhum requisito obrigatório aplicável, nenhuma
+  fiscalização concluída no período) não entra na média ponderada — nunca
+  é tratado como zero.
+- **KPIs do dashboard (RF-110 a RF-112, CA-17) são calculados sob demanda**,
+  sem cache/materialização — mesmo padrão dos outros indicadores calculados
+  na leitura desta stack. Cada cartão tem um `href` para a lista já
+  filtrada correspondente (CA-17); "fornecedores ativos"/"aprovados"/"com
+  ressalvas" usam a última rodada de qualificação de cada fornecedor
+  (calculada em memória por falta de suporte a *window functions* nesta
+  fatia — volume aceitável no MVP).
+- **"Minha fila" (RF-111) é estritamente pessoal**, nunca uma fila geral
+  disfarçada: cada item vem de uma condição que amarra o registro ao
+  usuário autenticado (cadastros aguardando análise só aparece para
+  Compras, documentos aguardando análise e fiscalizações abertas só para
+  QSMS, planos aguardando decisão só para quem tem `NC_DECIDE`, e "NCs sob
+  minha responsabilidade" para qualquer perfil que tenha alguma).
+- **Exportação (RF-115, CA-20) implementada só para a lista de
+  fornecedores** nesta fatia — não para NCs/documentos/fiscalizações, para
+  manter o escopo entregável (mesmo padrão de adiamento já usado em fatias
+  anteriores). `exportSuppliersCsv` reaplica exatamente o mesmo filtro
+  (`buildSuppliersWhere`, compartilhado com `listSuppliers`) e a mesma
+  autorização (`supplier.view` + a nova permissão `report.export`, restrita
+  aos três perfis internos), com um teto de 5000 linhas (sem streaming) e
+  um registro de auditoria (`supplier.export`) com os filtros usados e a
+  contagem de linhas — consistente com RNF-004 (acesso sensível é
+  auditado).
+- **Bug pré-existente corrigido en passant**: a busca textual de
+  fornecedores (`busca=...`, desde a F2) incluía uma cláusula "CNPJ contém
+  `normalizeCnpj(busca)`" que, para um termo sem nenhum dígito, virava
+  "CNPJ contém string vazia" — o que casa com qualquer CNPJ e faz o filtro
+  de texto silenciosamente devolver todo mundo. Encontrado ao escrever o
+  teste E2E de exportação respeitando o filtro (F7); corrigido para só
+  entrar a cláusula de CNPJ quando a busca tiver algum dígito. Afeta tanto
+  a tela `/fornecedores` quanto a exportação, já que ambas compartilham
+  `buildSuppliersWhere`.
+- **RF-115 (histórico geral com filtros) e RF-081/relatório de fiscalização
+  continuam fora de escopo** — o "Histórico" da tela é a `AuditLog` +
+  timeline por fornecedor já implementada desde fatias anteriores; um
+  relatório dedicado com filtros próprios fica para além do MVP.

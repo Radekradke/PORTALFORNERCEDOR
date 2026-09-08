@@ -13,6 +13,7 @@ import {
   createNonConformityDraftFromInspectionAnswer,
   type InspectionOriginContext,
 } from "@/modules/nonconformities/services/nc-service";
+import { notifySupplierUsers, sendNotificationEmailToMany } from "@/modules/notifications/services/notification-service";
 
 export class InspectionServiceError extends Error {}
 
@@ -91,8 +92,13 @@ export async function scheduleInspection(actor: Actor, input: ScheduleInspection
     })),
   }));
 
-  return prisma.$transaction(async (tx) => {
-    const inspection = await tx.inspection.create({
+  const title = "Fiscalização programada";
+  const scheduledLabel = input.scheduledAt.toLocaleDateString("pt-BR");
+  const message = `Uma fiscalização foi programada para ${scheduledLabel}.`;
+  let notifiedUserIds: string[] = [];
+
+  const inspection = await prisma.$transaction(async (tx) => {
+    const created = await tx.inspection.create({
       data: {
         supplierId: input.supplierId,
         templateId: input.templateId,
@@ -110,7 +116,7 @@ export async function scheduleInspection(actor: Actor, input: ScheduleInspection
         actorId: actor.id,
         action: "inspection.schedule",
         entityType: "Inspection",
-        entityId: inspection.id,
+        entityId: created.id,
         supplierId: input.supplierId,
         after: { templateTitle: template.title, scheduledAt: input.scheduledAt, inspectorId: input.inspectorId },
         context: auditCtx(context),
@@ -119,8 +125,25 @@ export async function scheduleInspection(actor: Actor, input: ScheduleInspection
       tx,
     );
 
-    return inspection;
+    // RF-116: aviso da visita é enviado ao fornecedor mesmo o evento sendo
+    // de auditoria interna — a fiscalização em si só fica visível no
+    // prontuário externo quando concluída (RF-133), mas o fornecedor
+    // precisa saber da programação para se preparar.
+    notifiedUserIds = await notifySupplierUsers(tx, input.supplierId, {
+      type: "inspection.schedule",
+      title,
+      message,
+      link: "/portal-fornecedor/fiscalizacoes",
+    });
+
+    return created;
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/fiscalizacoes");
+  }
+
+  return inspection;
 }
 
 // -----------------------------------------------------------------------------
@@ -373,6 +396,10 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
     });
   }
 
+  const title = "Fiscalização concluída";
+  const message = `A fiscalização foi concluída com ${evaluation.conformityPercentage}% de conformidade.`;
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.inspection.update({
       where: { id: inspectionId },
@@ -407,7 +434,18 @@ export async function concludeInspection(actor: Actor, inspectionId: string, con
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, inspection.supplierId, {
+      type: "inspection.conclude",
+      title,
+      message,
+      link: "/portal-fornecedor/fiscalizacoes",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/fiscalizacoes");
+  }
 
   return { ...evaluation, nonConformityDraftsCreated: ncOrigins.length };
 }

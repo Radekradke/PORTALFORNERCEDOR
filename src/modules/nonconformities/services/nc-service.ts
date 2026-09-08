@@ -16,6 +16,12 @@ import { recordAudit } from "@/modules/audit/services/audit-service";
 import { getStorageProvider } from "@/lib/storage";
 import { validateUploadedFile, mimeTypeFor } from "@/lib/file-validation";
 import { suggestedDeadline } from "./nc-status";
+import {
+  createNotification,
+  notifySupplierUsers,
+  sendNotificationEmail,
+  sendNotificationEmailToMany,
+} from "@/modules/notifications/services/notification-service";
 
 export class NonConformityServiceError extends Error {}
 
@@ -76,9 +82,10 @@ export async function createNonConformity(actor: Actor, input: CreateNonConformi
 
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      let notifiedSupplierUserIds: string[] = [];
+      const nc = await prisma.$transaction(async (tx) => {
         const code = await nextNcCode(tx, year);
-        const nc = await tx.nonConformity.create({
+        const created = await tx.nonConformity.create({
           data: {
             code,
             year,
@@ -103,17 +110,54 @@ export async function createNonConformity(actor: Actor, input: CreateNonConformi
             actorId: actor.id,
             action: "nc.create",
             entityType: "NonConformity",
-            entityId: nc.id,
+            entityId: created.id,
             supplierId: input.supplierId,
-            after: { code: nc.code, severity: nc.severity, deadline: nc.deadline },
+            after: { code: created.code, severity: created.severity, deadline: created.deadline },
             context: auditCtx(context),
             visibility: "externa",
           },
           tx,
         );
 
-        return nc;
+        notifiedSupplierUserIds = await notifySupplierUsers(tx, input.supplierId, {
+          type: "nc.create",
+          title: `Nova não conformidade — ${created.code}`,
+          message: `Uma não conformidade foi registrada (${created.code}). Envie o plano de ação até ${created.deadline.toLocaleDateString("pt-BR")}.`,
+          link: "/portal-fornecedor/nao-conformidades",
+        });
+
+        // RF-090/RF-116: quem é designado responsável interno recebe o
+        // aviso — exceto quando o próprio autor da NC se autodesignou (nesse
+        // caso o alerta seria redundante).
+        if (input.responsibleInternalId !== actor.id) {
+          await createNotification(tx, {
+            userId: input.responsibleInternalId,
+            type: "nc.assigned",
+            title: `Você é responsável pela NC ${created.code}`,
+            message: `Você foi designado responsável interno pela não conformidade ${created.code}.`,
+            link: "/nao-conformidades",
+            supplierId: input.supplierId,
+          });
+        }
+
+        return created;
       });
+
+      const title = `Nova não conformidade — ${nc.code}`;
+      const message = `Uma não conformidade foi registrada (${nc.code}). Envie o plano de ação até ${nc.deadline.toLocaleDateString("pt-BR")}.`;
+      if (notifiedSupplierUserIds.length > 0) {
+        await sendNotificationEmailToMany(notifiedSupplierUserIds, title, message, "/portal-fornecedor/nao-conformidades");
+      }
+      if (input.responsibleInternalId !== actor.id) {
+        await sendNotificationEmail(
+          input.responsibleInternalId,
+          `Você é responsável pela NC ${nc.code}`,
+          `Você foi designado responsável interno pela não conformidade ${nc.code}.`,
+          "/nao-conformidades",
+        );
+      }
+
+      return nc;
     } catch (err) {
       if (isUniqueCodeConflict(err) && attempt < 4) continue;
       throw err;
@@ -243,6 +287,10 @@ export async function openNonConformity(actor: Actor, ncId: string, context: Req
     throw new NonConformityServiceError("Esta NC já foi aberta ao fornecedor.");
   }
 
+  const title = `Nova não conformidade — ${nc.code}`;
+  const message = `Uma não conformidade foi registrada (${nc.code}). Envie o plano de ação até ${nc.deadline.toLocaleDateString("pt-BR")}.`;
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.nonConformity.update({
       where: { id: ncId },
@@ -263,7 +311,18 @@ export async function openNonConformity(actor: Actor, ncId: string, context: Req
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, nc.supplierId, {
+      type: "nc.open",
+      title,
+      message,
+      link: "/portal-fornecedor/nao-conformidades",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/nao-conformidades");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -355,6 +414,17 @@ export async function decideActionPlan(actor: Actor, input: DecideActionPlanInpu
 
   const nextStatus: NonConformityStatus = input.decision === "ACEITO" ? "EM_CORRECAO" : "AGUARDANDO_PLANO";
 
+  const DECISION_LABELS: Record<ActionPlanDecision, string> = {
+    ACEITO: "aceito",
+    AJUSTES_SOLICITADOS: "devolvido para ajustes",
+    REJEITADO: "rejeitado",
+  };
+  const title = `Plano de ação ${DECISION_LABELS[input.decision]} — ${nc.code}`;
+  const message = `O plano de ação da não conformidade ${nc.code} foi ${DECISION_LABELS[input.decision]}.${
+    input.reason?.trim() ? ` Motivo: ${input.reason.trim()}` : ""
+  }`;
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.correctiveAction.update({
       where: { nonConformityId: input.ncId },
@@ -381,7 +451,18 @@ export async function decideActionPlan(actor: Actor, input: DecideActionPlanInpu
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, nc.supplierId, {
+      type: "nc.plan.decide",
+      title,
+      message,
+      link: "/portal-fornecedor/nao-conformidades",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/nao-conformidades");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -509,6 +590,14 @@ export async function verifyCorrection(actor: Actor, input: VerifyCorrectionInpu
 
   const nextStatus: NonConformityStatus = input.decision === "APROVADA" ? "ENCERRADA" : "EM_CORRECAO";
 
+  const title =
+    input.decision === "APROVADA" ? `Não conformidade encerrada — ${nc.code}` : `Correção devolvida — ${nc.code}`;
+  const message =
+    input.decision === "APROVADA"
+      ? `A correção da não conformidade ${nc.code} foi verificada e aprovada. A NC está encerrada.`
+      : `A correção da não conformidade ${nc.code} foi devolvida. Orientação: ${input.note?.trim() ?? ""}`;
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.correctiveAction.update({
       where: { nonConformityId: input.ncId },
@@ -545,7 +634,18 @@ export async function verifyCorrection(actor: Actor, input: VerifyCorrectionInpu
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, nc.supplierId, {
+      type: "nc.verify",
+      title,
+      message,
+      link: "/portal-fornecedor/nao-conformidades",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/nao-conformidades");
+  }
 }
 
 // -----------------------------------------------------------------------------

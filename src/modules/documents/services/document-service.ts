@@ -7,6 +7,7 @@ import { recordAudit } from "@/modules/audit/services/audit-service";
 import { getStorageProvider } from "@/lib/storage";
 import { validateUploadedFile, mimeTypeFor } from "@/lib/file-validation";
 import { computeDocumentCompliance } from "./document-compliance";
+import { notifySupplierUsers, sendNotificationEmailToMany } from "@/modules/notifications/services/notification-service";
 
 export class DocumentServiceError extends Error {}
 
@@ -240,7 +241,7 @@ export async function uploadDocumentVersion(actor: Actor, input: UploadDocumentI
 async function loadVersionForReview(versionId: string) {
   const version = await prisma.documentVersion.findUnique({
     where: { id: versionId },
-    include: { supplierRequirement: true },
+    include: { supplierRequirement: { include: { requirementType: true } } },
   });
   if (!version) throw new DocumentServiceError("Versão de documento não encontrada.");
   return version;
@@ -286,6 +287,10 @@ export async function approveDocumentVersion(actor: Actor, input: ApproveDocumen
     throw new DocumentServiceError("Este documento não está em um estado analisável.");
   }
 
+  let notifiedUserIds: string[] = [];
+  const title = `Documento aprovado — ${version.supplierRequirement.requirementType.name}`;
+  const message = `O documento enviado para "${version.supplierRequirement.requirementType.name}" foi aprovado.`;
+
   await prisma.$transaction(async (tx) => {
     await tx.documentVersion.update({
       where: { id: input.versionId },
@@ -310,7 +315,18 @@ export async function approveDocumentVersion(actor: Actor, input: ApproveDocumen
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, version.supplierRequirement.supplierId, {
+      type: "document.version.approve",
+      title,
+      message,
+      link: "/portal-fornecedor/documentos",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/documentos");
+  }
 }
 
 export interface RejectDocumentInput {
@@ -329,6 +345,10 @@ export async function rejectDocumentVersion(actor: Actor, input: RejectDocumentI
   if (!["ENVIADO", "EM_ANALISE"].includes(version.status)) {
     throw new DocumentServiceError("Este documento não está em um estado analisável.");
   }
+
+  let notifiedUserIds: string[] = [];
+  const title = `Documento rejeitado — ${version.supplierRequirement.requirementType.name}`;
+  const message = `O documento enviado para "${version.supplierRequirement.requirementType.name}" foi rejeitado. Motivo: ${input.reason.trim()}`;
 
   await prisma.$transaction(async (tx) => {
     await tx.documentVersion.update({
@@ -354,7 +374,18 @@ export async function rejectDocumentVersion(actor: Actor, input: RejectDocumentI
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, version.supplierRequirement.supplierId, {
+      type: "document.version.reject",
+      title,
+      message,
+      link: "/portal-fornecedor/documentos",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, message, "/portal-fornecedor/documentos");
+  }
 }
 
 // -----------------------------------------------------------------------------

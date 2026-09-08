@@ -4,6 +4,7 @@ import { isExternal, isInternal } from "@/modules/auth-access/domain/actor";
 import { Topbar } from "@/components/layout/topbar";
 import { ExternalNav } from "@/components/layout/external-nav";
 import { prisma } from "@/lib/prisma";
+import { getUnreadNotificationCount } from "@/modules/notifications/services/notification-service";
 
 export default async function PortalFornecedorLayout({ children }: { children: React.ReactNode }) {
   const actor = await getCurrentActor();
@@ -13,14 +14,14 @@ export default async function PortalFornecedorLayout({ children }: { children: R
   if (isInternal(actor)) redirect("/dashboard");
   if (!isExternal(actor) || !actor.supplierId) redirect("/login");
 
-  const supplier = await prisma.supplier.findUnique({
-    where: { id: actor.supplierId },
-    select: { legalName: true },
-  });
+  const [supplier, unreadCount] = await Promise.all([
+    prisma.supplier.findUnique({ where: { id: actor.supplierId }, select: { legalName: true } }),
+    getUnreadNotificationCount(actor),
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Topbar actor={actor} />
+      <Topbar actor={actor} notificationsHref="/portal-fornecedor/notificacoes" unreadCount={unreadCount} />
       <ExternalNav role={actor.role} />
       <div className="border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground sm:px-6">
         Portal do fornecedor — {supplier?.legalName ?? "empresa"}

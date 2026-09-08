@@ -11,7 +11,7 @@ também `CLAUDE.md` antes de alterar domínio, permissões, estados ou fluxos.
 
 ## Status desta entrega
 
-**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação) + F5 (Fiscalização) + F6 (Não conformidade e plano de ação).**
+**Fatias implementadas: F0 (Fundação) + F1 (Acesso e autorização) + F2 (Fornecedores) + F3 (Requisitos e documentos) + F4 (Qualificação) + F5 (Fiscalização) + F6 (Não conformidade e plano de ação) + F7 (Operação) — todas as fatias do roteiro de `PROMPT_MESTRE_CLAUDE.md`.**
 
 F0/F1 incluem: scaffold Next.js/TypeScript/Tailwind, Docker Compose
 (PostgreSQL + MinIO + Mailpit), autenticação local (Argon2id), sessão em
@@ -80,11 +80,25 @@ automática) de suspensão para NC crítica vencida (RF-099, RN-016).
 `Evidence` (F5) passou a ser compartilhada entre fiscalização, NC e plano
 de ação, com download privado unificado num único módulo.
 
-Dashboard de risco/indicadores **ainda não existe** — entra na fatia F7
-(ver `PROMPT_MESTRE_CLAUDE.md`). O menu interno e o menu do portal externo
-já mostram a arquitetura de informação completa da especificação, com os
-itens ainda não implementados marcados como "em breve" (não são links
-falsos).
+F7 adiciona: dashboard com indicadores gerais (fornecedores ativos,
+aprovados/com ressalvas, suspensos/bloqueados, documentos vencidos/vencendo,
+fila de análise, fiscalizações pendentes, NCs abertas/atrasadas — RF-110 a
+RF-112), cada cartão levando à lista já filtrada correspondente (CA-17);
+"minha fila" pessoal por perfil (RF-111); central de notificações
+(`Notification`, RF-116/RF-117) com aviso in-portal e e-mail transacional
+para os eventos com destinatário inequívoco (cadastro validado/rejeitado/
+ajustes solicitados, situação operacional alterada, documento aprovado/
+rejeitado, resultado de qualificação, fiscalização programada/concluída, NC
+aberta/decidida/verificada e designação de responsável interno), sino com
+contador de não lidas no topo de ambos os portais; um primeiro rascunho do
+Índice de Conformidade Operacional (RF-113, RN-023), claramente marcado
+como informativo e nunca usado para decidir ou bloquear nada (RN-016);
+exportação CSV da lista de fornecedores respeitando filtro e permissão
+atuais (RF-115, CA-20), com auditoria do próprio evento de exportação. O
+menu interno e o menu do portal externo mostram a arquitetura de
+informação completa da especificação; qualquer item ainda marcado "em
+breve" está fora do escopo desta entrega (ver limitações abaixo), não é
+um link falso.
 
 ## Stack
 
@@ -201,6 +215,8 @@ src/
     inspections/            # checklists, programação, execução e resultado (RF-070 a RF-082)
     nonconformities/        # NC, plano de ação, revisão, verificação e reabertura (RF-090 a RF-099)
     evidence/               # download privado unificado de evidência (fiscalização/NC/plano)
+    notifications/          # central de notificações in-portal + e-mail (RF-116, RF-117)
+    dashboard/              # KPIs, fila pessoal e ICO informativo (RF-110 a RF-113)
     audit/                # trilha de auditoria (interna e visível ao fornecedor)
   components/
     ui/                   # componentes shadcn/ui (button, input, table...)
@@ -265,11 +281,29 @@ docs/
   (nunca derivada do nome enviado); download só acontece via URL assinada de
   60 segundos, gerada depois de conferir organização e permissão no
   servidor, e o acesso é auditado (RF-118, RNF-003, RNF-004).
+- Notificação (F7) é sempre lida/marcada como lida pelo próprio dono
+  (`Notification.userId === actor.id`); nunca aceita marcar a notificação de
+  outra pessoa, mesmo por ID direto. Exportação de fornecedores (RF-115,
+  CA-20) exige a permissão `report.export` além de `supplier.view`, aplica
+  exatamente o mesmo filtro da tela e grava `AuditLog` do próprio evento de
+  exportação (RNF-004).
 
 ## O que ainda não está pronto (limitações honestas desta fatia)
 
-- Não há dashboard de risco/indicadores (ICO) — a interface mostra esse
-  item do menu como "em breve".
+- **ICO (F7) é só um primeiro rascunho da fórmula proposta na especificação,
+  não aprovado pelo dono do processo (D-09)** — toda tela que o mostra deixa
+  isso explícito (fórmula, componentes e "informativo" no próprio texto) e
+  o valor nunca bloqueia nem decide nada automaticamente (RN-016).
+- **Notificação (F7) cobre só eventos com destinatário inequívoco** (a
+  própria empresa do fornecedor, ou uma pessoa interna especificamente
+  designada) — ver D-10. Eventos cujo destinatário natural seria um
+  grupo/perfil (ex.: avisar todo o time de Compras que um cadastro foi
+  enviado) não geram notificação nesta fatia. Não há notificação
+  proativa/agendada (ex.: alerta noturno de NC vencida ou documento
+  vencendo) — sem worker/cron nesta stack.
+- **Exportação (F7) existe só para a lista de fornecedores** (RF-115,
+  CA-20) — não para documentos, fiscalizações ou não conformidades; e tem
+  um teto de 5000 linhas sem streaming/paginação de exportação.
 - Fiscalização (F5) não tem edição/reordenação de item de checklist já
   criado (só criar novo ou inativar o modelo inteiro) nem relatório
   exportável (RF-081, SHOULD) — a tela de detalhe já mostra tudo, só não
@@ -313,15 +347,23 @@ docs/
   (esbuild/vite do Vitest, bundler interno do Next), não de código exposto
   em produção pela aplicação. Reavaliar antes de produção.
 
-## Próxima fatia recomendada
+## Estado do roteiro
 
-F7 — Operação: dashboard com KPIs cujo número sempre corresponde a uma
-lista filtrada navegável (CA-17 — fornecedores por status, documentos por
-vencer, fiscalizações pendentes, NCs vencidas), respeitando as permissões
-de quem está vendo; notificações internas/externas para os eventos que já
-existem hoje só como `AuditLog` (D-10 — qualificação decidida, fiscalização
-concluída, NC aberta/vencida, plano decidido); filtros e exportação
-autorizada nas listagens principais (RF-052, RF-020 e similares, todos
-adiados como SHOULD até aqui); e um primeiro rascunho, claramente marcado
-como não-definitivo, do Índice de Conformidade Operacional (D-09) usando
-os dados já existentes (documentos, qualificação, fiscalizações, NCs).
+Todas as fatias verticais do roteiro de `PROMPT_MESTRE_CLAUDE.md` (F0 a F7)
+estão implementadas — cadastro, requisitos e documentos, qualificação,
+fiscalização, não conformidade e plano de ação, e a camada de operação
+(dashboard, notificações, ICO informativo e exportação) descritas acima.
+Isso cobre o fluxo funcional MUST completo da especificação v0.1-R1; os
+itens marcados SHOULD que ficaram fora (exceção formal de requisito,
+pareceres múltiplos de qualificação/NC, importação em lote, relatórios
+exportáveis além da lista de fornecedores, edição/reordenação de item de
+checklist) estão listados individualmente na seção de limitações acima,
+cada um com a razão do adiamento — nenhum foi esquecido por descuido.
+
+O que resta antes de um uso real em produção não é mais "a próxima fatia
+funcional", e sim as decisões de negócio ainda pendentes (a lista completa
+está em `docs/DECISOES_PENDENTES.md`: fórmula definitiva do ICO — D-09,
+política de notificação/escalonamento — D-10, retenção de dados — D-11,
+identidade/SSO corporativo — D-12, e infraestrutura de produção — D-13) e
+os itens de robustez operacional já documentados (rate limit distribuído,
+worker/cron para notificação proativa, upgrade major de Next.js/Vitest).

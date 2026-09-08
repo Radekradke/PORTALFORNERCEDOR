@@ -19,7 +19,7 @@ export const INTERNAL_NAV: NavItem[] = [
   { href: "/fiscalizacoes", label: "Fiscalizações", enabled: true },
   { href: "/nao-conformidades", label: "Não conformidades", enabled: true },
   { href: "/relatorios", label: "Relatórios", enabled: false },
-  { href: "/notificacoes", label: "Notificações", enabled: false },
+  { href: "/notificacoes", label: "Notificações", enabled: true },
   { href: "/usuarios", label: "Usuários e permissões", roles: ["ADMIN_TI"], enabled: true },
   { href: "/auditoria", label: "Auditoria", roles: ["ADMIN_TI", "COMPRAS", "QSMS"], enabled: true },
 ];
@@ -31,7 +31,7 @@ export const EXTERNAL_NAV: NavItem[] = [
   { href: "/portal-fornecedor/qualificacao", label: "Qualificação", enabled: true },
   { href: "/portal-fornecedor/fiscalizacoes", label: "Fiscalizações", enabled: true },
   { href: "/portal-fornecedor/nao-conformidades", label: "Não conformidades e planos", enabled: true },
-  { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: false },
+  { href: "/portal-fornecedor/notificacoes", label: "Notificações", enabled: true },
   { href: "/portal-fornecedor/usuarios", label: "Usuários da empresa", roles: ["FORNECEDOR_ADMIN"], enabled: false },
   { href: "/portal-fornecedor/historico", label: "Histórico", enabled: true },
 ];

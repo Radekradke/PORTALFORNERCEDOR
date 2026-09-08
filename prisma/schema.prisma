@@ -90,6 +90,7 @@ model User {
   actionPlansSubmitted      CorrectiveAction[]  @relation("ActionPlanSubmittedBy")
   actionPlansReviewed       CorrectiveAction[]  @relation("ActionPlanReviewedBy")
   actionPlansVerified       CorrectiveAction[]  @relation("ActionPlanVerifiedBy")
+  notifications             Notification[]
 
   @@index([supplierId])
   @@index([role])
@@ -300,6 +301,7 @@ model Supplier {
   qualifications Qualification[]
   inspections   Inspection[]
   nonConformities NonConformity[]
+  notifications Notification[]
 
   @@index([registrationStatus])
   @@index([operationalStatus])
@@ -967,4 +969,38 @@ model CorrectiveAction {
   evidences Evidence[]
 
   @@map("corrective_actions")
+}
+
+// =============================================================================
+// F7 — Operação (dashboard, notificações, relatórios)
+// =============================================================================
+
+// Central de notificações (RF-116, RF-117, seção 10). `type` é texto livre
+// (não enum) — mesmo padrão já usado em `AuditLog.action`: o catálogo de
+// eventos que disparam notificação é decisão operacional em evolução (D-10),
+// não uma lista fechada que exigiria migration a cada novo evento.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    String // ex.: "supplier.registration.adjustments_requested"
+  title   String
+  message String
+  link    String // rota interna — "atalho para a ação necessária" (RF-116)
+
+  // Contexto para isolamento/consulta — nunca usado para autorizar (a
+  // notificação é sempre um recurso "meu": consulta sempre filtra por
+  // userId = ator autenticado, mesmo padrão de Session/PasswordResetToken).
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@index([supplierId])
+  @@map("notifications")
 }

@@ -7,6 +7,7 @@ import { recordAudit } from "@/modules/audit/services/audit-service";
 import { requestPasswordReset } from "@/modules/auth-access/services/password-reset-service";
 import { applyRequirementMatrix } from "@/modules/requirements/services/apply-matrix-service";
 import { ensureQualificationRound } from "@/modules/qualifications/services/qualification-service";
+import { notifySupplierUsers, sendNotificationEmailToMany } from "@/modules/notifications/services/notification-service";
 
 export class SupplierServiceError extends Error {}
 
@@ -152,13 +153,8 @@ export interface ListSuppliersFilters {
   pageSize?: number;
 }
 
-export async function listSuppliers(actor: Actor, filters: ListSuppliersFilters = {}) {
-  assertAuthorized(actor, "supplier.view");
-
-  const page = filters.page && filters.page > 0 ? filters.page : 1;
-  const pageSize = filters.pageSize && filters.pageSize > 0 ? Math.min(filters.pageSize, 100) : 20;
-
-  const where: Prisma.SupplierWhereInput = {
+function buildSuppliersWhere(filters: ListSuppliersFilters): Prisma.SupplierWhereInput {
+  return {
     ...(filters.registrationStatus ? { registrationStatus: filters.registrationStatus as never } : {}),
     ...(filters.operationalStatus ? { operationalStatus: filters.operationalStatus as never } : {}),
     ...(filters.criticality ? { criticality: filters.criticality as never } : {}),
@@ -167,11 +163,25 @@ export async function listSuppliers(actor: Actor, filters: ListSuppliersFilters 
           OR: [
             { legalName: { contains: filters.search, mode: "insensitive" } },
             { tradeName: { contains: filters.search, mode: "insensitive" } },
-            { cnpj: { contains: normalizeCnpj(filters.search) } },
+            // Só entra na busca por CNPJ quando a busca tem algum dígito —
+            // caso contrário `normalizeCnpj` devolve "", que "contains" em
+            // qualquer string, e a busca acaba trazendo todo mundo (bug
+            // encontrado ao testar a exportação respeitando o filtro, F7).
+            ...(normalizeCnpj(filters.search)
+              ? [{ cnpj: { contains: normalizeCnpj(filters.search) } }]
+              : []),
           ],
         }
       : {}),
   };
+}
+
+export async function listSuppliers(actor: Actor, filters: ListSuppliersFilters = {}) {
+  assertAuthorized(actor, "supplier.view");
+
+  const page = filters.page && filters.page > 0 ? filters.page : 1;
+  const pageSize = filters.pageSize && filters.pageSize > 0 ? Math.min(filters.pageSize, 100) : 20;
+  const where = buildSuppliersWhere(filters);
 
   const [total, items] = await Promise.all([
     prisma.supplier.count({ where }),
@@ -187,6 +197,73 @@ export async function listSuppliers(actor: Actor, filters: ListSuppliersFilters 
   ]);
 
   return { items, total, page, pageSize };
+}
+
+// -----------------------------------------------------------------------------
+// Exportação (RF-115, CA-20) — respeita exatamente os mesmos filtros da
+// listagem e a mesma autorização; nunca inclui mais dados do que a tela.
+// -----------------------------------------------------------------------------
+
+const EXPORT_ROW_LIMIT = 5000; // teto de segurança do MVP — sem streaming/paginação de exportação nesta fatia.
+
+function csvCell(value: string | null | undefined): string {
+  return `"${(value ?? "").replace(/"/g, '""')}"`;
+}
+
+export async function exportSuppliersCsv(
+  actor: Actor,
+  filters: ListSuppliersFilters,
+  context: RequestContext,
+): Promise<string> {
+  assertAuthorized(actor, "supplier.view");
+  assertAuthorized(actor, "report.export");
+
+  const where = buildSuppliersWhere(filters);
+  const items = await prisma.supplier.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: EXPORT_ROW_LIMIT,
+    include: { categories: { include: { category: true } } },
+  });
+
+  const header = [
+    "CNPJ",
+    "Razão social",
+    "Nome fantasia",
+    "Criticidade",
+    "Tipo de fornecimento",
+    "Status cadastral",
+    "Situação operacional",
+    "Categorias",
+  ];
+  const lines = [header.map(csvCell).join(";")];
+  for (const s of items) {
+    lines.push(
+      [
+        s.cnpj,
+        s.legalName,
+        s.tradeName ?? "",
+        s.criticality,
+        s.supplyType ?? "",
+        s.registrationStatus,
+        s.operationalStatus,
+        s.categories.map((c) => c.category.name).join(", "),
+      ]
+        .map(csvCell)
+        .join(";"),
+    );
+  }
+
+  await recordAudit({
+    actorId: actor.id,
+    action: "supplier.export",
+    entityType: "Supplier",
+    after: { filters: JSON.parse(JSON.stringify(filters)), rowCount: items.length },
+    context: auditCtx(context),
+    visibility: "interna",
+  });
+
+  return lines.join("\r\n");
 }
 
 export async function getSupplierById(actor: Actor, id: string) {
@@ -436,6 +513,13 @@ export async function submitForAnalysis(actor: Actor, supplierId: string, contex
   });
 }
 
+/** RF-116/RF-117: eventos do cadastro que o fornecedor precisa ser avisado — mensagem curta + link para o próprio cadastro. */
+const REGISTRATION_NOTIFICATIONS: Partial<Record<string, { title: string; message: string }>> = {
+  CADASTRO_VALIDADO: { title: "Cadastro validado", message: "Seu cadastro foi validado e agora está ativo no portal." },
+  AJUSTES_SOLICITADOS: { title: "Ajustes solicitados no cadastro", message: "Foram solicitados ajustes no seu cadastro. Confira o motivo e reenvie para análise." },
+  REJEITADO: { title: "Cadastro rejeitado", message: "Seu cadastro foi rejeitado. Confira o motivo no portal." },
+};
+
 async function transitionRegistration(
   actor: Actor,
   supplierId: string,
@@ -461,6 +545,9 @@ async function transitionRegistration(
     );
   }
 
+  const notification = REGISTRATION_NOTIFICATIONS[options.to];
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.supplier.update({
       where: { id: supplierId },
@@ -481,7 +568,20 @@ async function transitionRegistration(
       },
       tx,
     );
+
+    if (notification) {
+      notifiedUserIds = await notifySupplierUsers(tx, supplierId, {
+        type: options.action,
+        title: notification.title,
+        message: notification.message,
+        link: "/portal-fornecedor",
+      });
+    }
   });
+
+  if (notification && notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, notification.title, notification.message, "/portal-fornecedor");
+  }
 }
 
 export async function startReview(actor: Actor, supplierId: string, context: RequestContext) {
@@ -609,6 +709,14 @@ async function changeOperationalStatus(
 
   const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id: supplierId } });
 
+  const OPERATIONAL_TITLES: Record<string, string> = {
+    SUSPENSO: "Fornecedor suspenso",
+    BLOQUEADO: "Fornecedor bloqueado",
+    REGULAR: "Situação operacional normalizada",
+  };
+  const title = OPERATIONAL_TITLES[options.to] ?? "Situação operacional alterada";
+  let notifiedUserIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     await tx.supplier.update({
       where: { id: supplierId },
@@ -629,7 +737,18 @@ async function changeOperationalStatus(
       },
       tx,
     );
+
+    notifiedUserIds = await notifySupplierUsers(tx, supplierId, {
+      type: options.action,
+      title,
+      message: options.reason.trim(),
+      link: "/portal-fornecedor",
+    });
   });
+
+  if (notifiedUserIds.length > 0) {
+    await sendNotificationEmailToMany(notifiedUserIds, title, options.reason.trim(), "/portal-fornecedor");
+  }
 }
 
 export async function suspendSupplier(actor: Actor, supplierId: string, reason: string, context: RequestContext) {

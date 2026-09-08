@@ -287,3 +287,15 @@ describe("authorize() — matriz de acesso F6 (não conformidade e plano de aç�
     expect(authorize(colaboradorA, "nc.respond", { supplierId: "supplier-A" })).toBe(true);
   });
 });
+
+describe("authorize() — matriz de acesso F7 (operação: dashboard e exportação)", () => {
+  it("dashboard e exportação são livres aos três perfis internos; fornecedor nunca acessa", () => {
+    for (const action of ["dashboard.view", "report.export"] as const) {
+      expect(authorize(makeActor({ role: "ADMIN_TI" }), action)).toBe(true);
+      expect(authorize(makeActor({ role: "COMPRAS" }), action)).toBe(true);
+      expect(authorize(makeActor({ role: "QSMS" }), action)).toBe(true);
+      expect(authorize(makeActor({ role: "FORNECEDOR_ADMIN", supplierId: "s1" }), action)).toBe(false);
+      expect(authorize(makeActor({ role: "FORNECEDOR_COLABORADOR", supplierId: "s1" }), action)).toBe(false);
+    }
+  });
+});

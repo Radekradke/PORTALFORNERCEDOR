@@ -4,6 +4,7 @@ import { isInternal, isExternal } from "@/modules/auth-access/domain/actor";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { getUnreadNotificationCount } from "@/modules/notifications/services/notification-service";
 
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const actor = await getCurrentActor();
@@ -13,11 +14,13 @@ export default async function InternalLayout({ children }: { children: React.Rea
   if (isExternal(actor)) redirect("/portal-fornecedor");
   if (!isInternal(actor)) redirect("/login");
 
+  const unreadCount = await getUnreadNotificationCount(actor);
+
   return (
     <div className="flex min-h-screen">
       <Sidebar role={actor.role} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar actor={actor} />
+        <Topbar actor={actor} notificationsHref="/notificacoes" unreadCount={unreadCount} />
         <MobileNav role={actor.role} />
         <main className="flex-1 bg-muted/20 p-4 sm:p-6">{children}</main>
       </div>

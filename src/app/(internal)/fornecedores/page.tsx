@@ -27,6 +27,11 @@ export default async function SuppliersPage({
   });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const canCreate = authorize(actor, "supplier.create");
+  const canExport = authorize(actor, "report.export");
+
+  const exportParams = new URLSearchParams();
+  if (searchParams.busca) exportParams.set("busca", searchParams.busca);
+  if (searchParams.status) exportParams.set("status", searchParams.status);
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,11 +40,18 @@ export default async function SuppliersPage({
           <h1 className="text-2xl font-semibold">Fornecedores</h1>
           <p className="text-muted-foreground">Cadastro, convite e situação de cada fornecedor.</p>
         </div>
-        {canCreate && (
-          <Button asChild>
-            <Link href="/fornecedores/novo">Novo fornecedor</Link>
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {canExport && (
+            <Button asChild variant="outline">
+              <a href={`/fornecedores/export?${exportParams.toString()}`}>Exportar CSV</a>
+            </Button>
+          )}
+          {canCreate && (
+            <Button asChild>
+              <Link href="/fornecedores/novo">Novo fornecedor</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <form className="flex flex-wrap items-end gap-3" method="get">
