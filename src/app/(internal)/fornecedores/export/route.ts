@@ -3,6 +3,13 @@ import { getCurrentActor } from "@/modules/auth-access/services/current-actor";
 import { AuthorizationError } from "@/modules/auth-access/domain/authorize";
 import { exportSuppliersCsv } from "@/modules/suppliers/services/supplier-service";
 
+// Sem segmento dinâmico no caminho (`/fornecedores/export`, sempre o mesmo
+// path), o Next.js tenta pré-renderizar esta rota em build time — e falha
+// (`getEnv()`/sessão exigem runtime real). O resultado sempre depende do
+// cookie de sessão, do filtro da querystring e de dado vivo do banco, então
+// nunca deveria ser cacheado/pré-gerado mesmo se pudesse: força dinâmico.
+export const dynamic = "force-dynamic";
+
 /** RF-115, CA-20: exporta exatamente os fornecedores da lista com os filtros atuais aplicados. */
 export async function GET(request: Request) {
   const actor = await getCurrentActor();

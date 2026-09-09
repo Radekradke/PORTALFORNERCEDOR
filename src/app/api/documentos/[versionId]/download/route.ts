@@ -3,6 +3,10 @@ import { getCurrentActor } from "@/modules/auth-access/services/current-actor";
 import { AuthorizationError } from "@/modules/auth-access/domain/authorize";
 import { getDownloadUrlForVersion, DocumentServiceError } from "@/modules/documents/services/document-service";
 
+// Nunca cacheado/pré-renderizado: depende de sessão e gera URL assinada
+// nova a cada chamada (RNF-003).
+export const dynamic = "force-dynamic";
+
 /**
  * Download privado (RF-045, RNF-003): confere organização/permissão no
  * servidor e só então assina uma URL temporária — nunca expõe a chave real

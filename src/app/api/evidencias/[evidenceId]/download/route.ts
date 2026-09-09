@@ -3,6 +3,10 @@ import { getCurrentActor } from "@/modules/auth-access/services/current-actor";
 import { AuthorizationError } from "@/modules/auth-access/domain/authorize";
 import { getEvidenceDownloadUrl, EvidenceServiceError } from "@/modules/evidence/services/evidence-service";
 
+// Nunca cacheado/pré-renderizado: depende de sessão e gera URL assinada
+// nova a cada chamada (RNF-003).
+export const dynamic = "force-dynamic";
+
 /**
  * Download privado de evidência (fiscalização, NC ou plano de ação — RNF-003)
  * — mesmo padrão do download de documento: confere permissão no servidor e
