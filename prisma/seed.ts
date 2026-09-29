@@ -69,7 +69,7 @@ const SEED_USERS: SeedUser[] = [
   },
 ];
 
-async function main() {
+export async function main() {
   console.log("Seed: iniciando (dados fictícios, ambiente local)...");
 
   const byEmail = new Map<string, { id: string; role: SeedUser["role"] }>();
@@ -518,11 +518,17 @@ async function main() {
   console.log("Seed: concluído.");
 }
 
-main()
-  .catch((error) => {
-    console.error("Seed falhou:", error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Só executa sozinho quando rodado direto como script (`tsx prisma/seed.ts`
+// ou `prisma db seed`) — quando importado (ex.: pela rota temporária de
+// seed remoto), quem chama decide quando rodar `main()`.
+const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectRun) {
+  main()
+    .catch((error) => {
+      console.error("Seed falhou:", error);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
