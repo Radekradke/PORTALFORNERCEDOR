@@ -5,6 +5,7 @@
   "description": "Portal de Fiscalização e Gestão de Fornecedores - Lifting Electric & Instrumentation",
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
